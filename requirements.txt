@@ -1,7 +1,73 @@
-fastapi
-uvicorn
-sqlalchemy
-pymysql
-passlib[bcrypt]
-python-jose
-python-dotenv
+# ==============================
+# REQUERIMIENTOS BACKEND (Python)
+# ==============================
+
+# ==== Framework principal ====
+fastapi==0.111.1
+uvicorn==0.23.2
+
+# ==== ORM y base de datos ====
+sqlalchemy==2.0.26
+pymysql==1.1.1  # Conector MySQL
+
+# ==== Seguridad y autenticación ====
+passlib[bcrypt]==1.7.4
+python-jose==3.3.0  # JWT
+python-dotenv==1.0.0  # Variables de entorno
+
+# ==== Manejo de archivos ====
+python-multipart==0.0.6
+aiofiles==23.2.0
+pillow==10.0.1
+
+# ==== IA / Visión por computadora ====
+opencv-python==4.8.1.78
+ultralytics  # YOLOv8
+
+# ==== Utilidades ====
+numpy==1.26.4
+scipy==1.12.2
+requests==2.32.0
+websockets==11.0.3
+
+# ==============================
+# INSTRUCCIONES DE PYTHON
+# ==============================
+#! Crear entorno virtual con Python 3.12
+# python3.12 -m venv .venv
+
+#! Activar entorno virtual
+# Windows: .venv\Scripts\activate
+# Mac/Linux: source .venv/bin/activate
+
+#* Instalar dependencias del backend
+# pip install -r requirements.txt
+
+#? Actualizar pip (opcional)
+# python -m pip install --upgrade pip
+
+
+# ==============================
+# DEPENDENCIAS FRONTEND (Node / React)
+# ==============================
+# NOTA: Estas se instalan en 'frontend_siv' usando npm/yarn, NO con pip
+
+#* Instalar paquetes con npm dentro de frontend_siv
+# cd frontend_siv
+# npm install
+
+#* Paquetes recomendados para frontend
+react
+react-dom
+bootstrap        # Solo CSS, JS opcional si se usa Popper
+@popperjs/core
+axios            # Para llamadas HTTP
+
+
+# ==============================
+# INSTRUCCIONES DE DESARROLLO FRONTEND
+# ==============================
+#! Levantar servidor de desarrollo de frontend
+# cd frontend_siv
+# npm run dev -- --host=localhost
+# Esto iniciará Vite en http://localhost:5179/ por defecto

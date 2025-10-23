@@ -11,7 +11,7 @@ const cameras = Array.from({ length: 4 }, (_, i) => ({
 const Dashboard = () => {
   const [showModal, setShowModal] = useState(null); // id de cámara abierta
   const [congestion, setCongestion] = useState({}); // congestión por cámara
-  const baseUrl = "http://127.0.0.1:8030"; // backend FastAPI
+  const baseUrl = "http://127.0.0.1:8000" // backend FastAPI
 
   // 🔹 Chequear congestión cada 2 segundos
   useEffect(() => {
