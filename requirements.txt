@@ -16,7 +16,7 @@ python-jose==3.3.0  # JWT
 python-dotenv==1.0.0  # Variables de entorno
 
 # ==== Manejo de archivos ====
-python-multipart==0.0.6
+python-multipart==0.0.7
 aiofiles==23.2.0
 pillow==10.0.1
 
@@ -26,7 +26,7 @@ ultralytics  # YOLOv8
 
 # ==== Utilidades ====
 numpy==1.26.4
-scipy==1.12.2
+scipy
 requests==2.32.0
 websockets==11.0.3
 
@@ -63,6 +63,7 @@ bootstrap        # Solo CSS, JS opcional si se usa Popper
 @popperjs/core
 axios            # Para llamadas HTTP
 
+# * npm install react react-dom bootstrap @popperjs/core axios
 
 # ==============================
 # INSTRUCCIONES DE DESARROLLO FRONTEND

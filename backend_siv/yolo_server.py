@@ -13,8 +13,8 @@ app = Flask(__name__)
 # Configuración modelo YOLO
 # ---------------------------
 model = YOLO("yolov8s.pt")  # Modelo más preciso
-device = "cuda"             # Para GPU, o "cpu" para CPU
-conf_threshold = 0.4         # Confianza mínima
+device = "cpu"             # "cuda" = GPU, "cpu" = CPU
+conf_threshold = 0.4        # Confianza mínima
 
 # ---------------------------
 # Configuración de cámaras (video local o RTSP)
