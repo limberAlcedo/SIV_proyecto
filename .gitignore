@@ -28,3 +28,5 @@ backend_siv/videos/*
 
 # Pero no ignorar .gitkeep
 !backend_siv/videos/.gitkeep
+# Node.js
+node_modules/

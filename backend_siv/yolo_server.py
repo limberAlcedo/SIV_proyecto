@@ -1,23 +1,26 @@
-# backend_siv/app/flask_yolo_multi.py
+# backend_siv/app/flask_yolo_multi_heatmap.py
 from flask import Flask, Response
 from ultralytics import YOLO
 import cv2
 from threading import Thread
 import queue
 import time
-import random
+import numpy as np
+import torch
 
 app = Flask(__name__)
 
 # ---------------------------
 # Configuración modelo YOLO
 # ---------------------------
-model = YOLO("yolov8s.pt")  # Modelo más preciso
-device = "cpu"             # "cuda" = GPU, "cpu" = CPU
-conf_threshold = 0.4        # Confianza mínima
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print("Usando dispositivo:", device)
+
+model = YOLO("yolov8n.pt")  # modelo ligero y rápido
+conf_threshold = 0.4
 
 # ---------------------------
-# Configuración de cámaras (video local o RTSP)
+# Configuración de cámaras
 # ---------------------------
 video_paths = {
     1: "backend_siv/videos/cam1.mp4",
@@ -26,9 +29,35 @@ video_paths = {
     4: "backend_siv/videos/cam4.mp4",
 }
 
-# Cola de frames y output por cámara
-frame_queues = {cam_id: queue.Queue(maxsize=5) for cam_id in video_paths}
+frame_queues = {cam_id: queue.Queue(maxsize=3) for cam_id in video_paths}
 output_frames = {cam_id: None for cam_id in video_paths}
+
+# ---------------------------
+# Colores y grosor por clase
+# ---------------------------
+COLORS = {
+    "person": (0, 255, 255),
+    "car": (0, 255, 0),
+    "truck": (255, 128, 0),
+    "bus": (255, 0, 0),
+    "motorbike": (0, 128, 255),
+    "bicycle": (128, 0, 255),
+    "traffic cone": (255, 255, 0),
+    "default": (128, 128, 128)
+}
+
+THICKNESS = {
+    "person": 2,
+    "car": 2,
+    "truck": 3,
+    "bus": 3,
+    "motorbike": 2,
+    "bicycle": 2,
+    "traffic cone": 2,
+    "default": 2
+}
+
+GRID_SIZE = (8, 8)  # tamaño del heatmap (filas x columnas)
 
 # ---------------------------
 # Captura de video por cámara
@@ -36,7 +65,7 @@ output_frames = {cam_id: None for cam_id in video_paths}
 def capture_frames(cam_id):
     cap = cv2.VideoCapture(video_paths[cam_id])
     if not cap.isOpened():
-        print(f"❌ No se pudo abrir el video de la cámara {cam_id}")
+        print(f"❌ No se pudo abrir la cámara {cam_id}")
         return
     print(f"✅ Cámara {cam_id} abierta correctamente")
     while True:
@@ -50,38 +79,50 @@ def capture_frames(cam_id):
             time.sleep(0.001)
 
 # ---------------------------
-# Procesamiento YOLO por cámara
+# Procesamiento YOLO + Heatmap
 # ---------------------------
 def process_frames(cam_id):
     global output_frames
     while True:
         if not frame_queues[cam_id].empty():
             frame = frame_queues[cam_id].get()
-            results = model.predict(frame, imgsz=1280, conf=conf_threshold, device=device)
+            h, w, _ = frame.shape
+            results = model.predict(frame, imgsz=640, conf=conf_threshold, device=device)
+            
+            # Contador de objetos para heatmap
+            heatmap_grid = np.zeros(GRID_SIZE, dtype=int)
+            
             for r in results:
                 boxes = r.boxes.xyxy.cpu().numpy()
                 classes = r.boxes.cls.cpu().numpy()
                 confidences = r.boxes.conf.cpu().numpy()
+                
                 for box, cls, conf in zip(boxes, classes, confidences):
                     x1, y1, x2, y2 = map(int, box[:4])
                     class_name = model.names[int(cls)]
+                    
+                    # Bounding box
+                    color = COLORS.get(class_name, COLORS["default"])
+                    thickness = THICKNESS.get(class_name, 2)
                     label = f"{class_name} {conf*100:.1f}%"
-
-                    # Color según tipo
-                    if class_name == "car":
-                        color = (0, 255, 0)
-                    elif class_name == "motorbike":
-                        color = (255, 0, 0)
-                    else:
-                        color = (0, 0, 255)
-
-                    # Bounding box y etiqueta
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                    (text_w, text_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+                    (text_w, text_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
                     cv2.rectangle(frame, (x1, y1 - text_h - 6), (x1 + text_w, y1), color, -1)
-                    cv2.putText(frame, label, (x1, y1 - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-
-            output_frames[cam_id] = frame
+                    cv2.putText(frame, label, (x1, y1 - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                    
+                    # Asignar a celda del heatmap
+                    cell_x = min(GRID_SIZE[1]-1, int((x1 + x2)/2 / w * GRID_SIZE[1]))
+                    cell_y = min(GRID_SIZE[0]-1, int((y1 + y2)/2 / h * GRID_SIZE[0]))
+                    heatmap_grid[cell_y, cell_x] += 1
+            
+            # Crear heatmap visual
+            heatmap = cv2.resize(heatmap_grid.astype(np.float32), (w, h), interpolation=cv2.INTER_NEAREST)
+            heatmap = np.clip(heatmap / heatmap.max() if heatmap.max() > 0 else heatmap, 0, 1)
+            heatmap_color = cv2.applyColorMap((heatmap * 255).astype(np.uint8), cv2.COLORMAP_JET)
+            overlay = cv2.addWeighted(frame, 0.7, heatmap_color, 0.3, 0)
+            
+            output_frames[cam_id] = overlay
+            time.sleep(1/15)
         else:
             time.sleep(0.001)
 
@@ -110,12 +151,27 @@ def camera_stream(cam_id):
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 # ---------------------------
-# Endpoint de congestión simulado
+# Endpoint congestión en tiempo real
 # ---------------------------
 @app.route('/camera/<int:cam_id>/congestion')
 def congestion(cam_id):
-    # Simula congestión aleatoria
-    congested = random.choice([True, False])
+    if cam_id not in video_paths:
+        return {"error": "Cámara no encontrada"}, 404
+    frame = output_frames.get(cam_id)
+    congested = False
+    if frame is not None:
+        results = model.predict(frame, imgsz=640, conf=conf_threshold, device=device)
+        counts = {name: 0 for name in ["person", "car", "truck", "bus", "motorbike", "bicycle", "traffic cone"]}
+        for r in results:
+            classes = r.boxes.cls.cpu().numpy()
+            for cls in classes:
+                cname = model.names[int(cls)]
+                if cname in counts:
+                    counts[cname] += 1
+        
+        total_vehicles = sum([counts[obj] for obj in ["car","truck","bus","motorbike","bicycle","traffic cone"]])
+        if total_vehicles >= 5 or counts["person"] >= 10:
+            congested = True
     return {"cam_id": cam_id, "congestion": congested}
 
 # ---------------------------
@@ -127,5 +183,5 @@ if __name__ == "__main__":
         t2 = Thread(target=process_frames, args=(cam_id,), daemon=True)
         t1.start()
         t2.start()
-    print("🚀 Servidor Flask corriendo en http://0.0.0.0:5001")
+    print("🚀 Servidor Flask con heatmap corriendo en http://0.0.0.0:5001")
     app.run(host="0.0.0.0", port=5001, threaded=True)

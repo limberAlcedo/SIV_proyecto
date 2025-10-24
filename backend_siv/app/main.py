@@ -1,55 +1,55 @@
 # backend_siv/app/main.py
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse
 from ultralytics import YOLO
-import cv2
-import threading
-import queue
-import time
+import cv2, threading, queue, time
 from collections import defaultdict
 
-app = FastAPI(title="Backend SIV")
+app = FastAPI(title="SIV 2.0 Backend")
 
 # ---------------------------
-# Configuración CORS
+# CORS
 # ---------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite cualquier origen
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # ---------------------------
-# Cargar modelos YOLO
+# Modelos YOLO
 # ---------------------------
-model_vehicle = YOLO("yolov8n.pt")              # Vehículos
-# model_plate = YOLO("yolov8n-license.pt")        # Patentes (si tienes el modelo)
-# Si no tienes el modelo de patentes, comenta la línea de arriba.
+model_vehicle = YOLO("yolov8n.pt")  # vehículos y personas
 
 # ---------------------------
-# Rutas de videos
+# Videos de cámaras
 # ---------------------------
 camera_videos = {
     1: "videos/cam1.mp4",
     2: "videos/cam2.mp4",
     3: "videos/cam3.mp4",
     4: "videos/cam4.mp4",
+    5: "videos/cam5.mp4",
+    6: "videos/cam6.mp4",
+    7: "videos/cam7.mp4",
+    8: "videos/cam8.mp4",
 }
 
 # ---------------------------
-# Variables de congestión
+# Variables de seguimiento
 # ---------------------------
 SLOW_THRESHOLD = 5
 SLOW_VEHICLE_COUNT = 3
 CONSECUTIVE_FRAMES = 3
 previous_positions = defaultdict(dict)
 congestion_counter = defaultdict(int)
+incident_memory = defaultdict(list)  # incidentes recientes en memoria
 
 # ---------------------------
-# Función de streaming con YOLO
+# Streaming + detección YOLO
 # ---------------------------
 def generate_frames_yolo(video_path, cam_id):
     q = queue.Queue(maxsize=5)
@@ -59,18 +59,16 @@ def generate_frames_yolo(video_path, cam_id):
         return
 
     def capture():
-        global congestion_counter, previous_positions
+        global congestion_counter, previous_positions, incident_memory
         while True:
             ret, frame = cap.read()
             if not ret:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 continue
 
-            # --- Detección de vehículos ---
             results = model_vehicle(frame)[0]
             slow_count = 0
             vehicle_id = 0
-            vehicle_boxes = []
 
             for box, cls, conf in zip(results.boxes.xyxy, results.boxes.cls, results.boxes.conf):
                 x1, y1, x2, y2 = map(int, box)
@@ -78,7 +76,6 @@ def generate_frames_yolo(video_path, cam_id):
                 conf = float(conf) * 100
 
                 if label_name in ["car", "truck", "bus", "motorbike"]:
-                    vehicle_boxes.append((x1, y1, x2, y2))
                     prev = previous_positions[cam_id].get(vehicle_id, (x1, y1, x2, y2))
                     dx = abs((x1 + x2)//2 - (prev[0] + prev[2])//2)
                     dy = abs((y1 + y2)//2 - (prev[1] + prev[3])//2)
@@ -90,17 +87,15 @@ def generate_frames_yolo(video_path, cam_id):
                     previous_positions[cam_id][vehicle_id] = (x1, y1, x2, y2)
                     vehicle_id += 1
 
-                    color = (0, 128, 255)  # naranjo para autos
+                    # Bounding box
+                    color = (0, 128, 255)
                     label = f"{label_name} {conf:.1f}%"
                     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 3)
                     (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
                     cv2.rectangle(frame, (x1, y1 - h - 10), (x1 + w, y1), color, -1)
-                    cv2.putText(frame, label, (x1, y1 - 5),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2, cv2.LINE_AA)
+                    cv2.putText(frame, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
 
-
-
-            # --- Lógica de congestión ---
+            # Lógica de congestión
             if slow_count >= SLOW_VEHICLE_COUNT and vehicle_id >= 5:
                 congestion_counter[cam_id] += 1
             else:
@@ -108,7 +103,8 @@ def generate_frames_yolo(video_path, cam_id):
 
             if congestion_counter[cam_id] >= CONSECUTIVE_FRAMES:
                 cv2.putText(frame, "🚨 CONGESTIÓN 🚨", (50, 60),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4, cv2.LINE_AA)
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
+                incident_memory[cam_id].append({"tipo": "congestion", "timestamp": time.time()})
 
             ret2, buffer = cv2.imencode(".jpg", frame)
             if ret2 and not q.full():
@@ -117,15 +113,12 @@ def generate_frames_yolo(video_path, cam_id):
 
     threading.Thread(target=capture, daemon=True).start()
 
-    try:
-        while True:
-            frame = q.get()
-            yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
-    finally:
-        cap.release()
+    while True:
+        frame = q.get()
+        yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
 
 # ---------------------------
-# Endpoint de streaming
+# Endpoints
 # ---------------------------
 @app.get("/camera/{cam_id}/stream")
 def camera_stream(cam_id: int):
@@ -137,20 +130,12 @@ def camera_stream(cam_id: int):
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
-# ---------------------------
-# Endpoint para descargar video completo
-# ---------------------------
-@app.get("/camera/{cam_id}.mp4")
-def camera_file(cam_id: int):
-    path = camera_videos.get(cam_id)
-    if not path:
-        return Response(status_code=404, content="Cámara no encontrada")
-    return FileResponse(path)
-
-# ---------------------------
-# Endpoint para consultar congestión
-# ---------------------------
 @app.get("/camera/{cam_id}/congestion")
 def check_congestion(cam_id: int):
     congested = congestion_counter.get(cam_id, 0) >= CONSECUTIVE_FRAMES
     return {"congestion": congested}
+
+@app.get("/camera/{cam_id}/alerts")
+def get_alerts(cam_id: int):
+    # últimos 5 incidentes
+    return {"alerts": incident_memory.get(cam_id, [])[-5:]}
