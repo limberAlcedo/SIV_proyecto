@@ -1,16 +1,20 @@
 # backend_siv/app/main.py
-from fastapi import FastAPI, Response
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
-import cv2, threading, queue, time
-from collections import defaultdict
-
-app = FastAPI(title="SIV 2.0 Backend")
+import cv2
+import time
+import torch
+import logging
+from collections import deque
+import numpy as np
 
 # ---------------------------
-# CORS
+# ⚙️ CONFIGURACIÓN BASE
 # ---------------------------
+app = FastAPI(title="SIV Video - Dashboard Mini Videos Minimalista")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,123 +23,208 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------------------------
-# Modelos YOLO
-# ---------------------------
-model_vehicle = YOLO("yolov8n.pt")  # vehículos y personas
+# Diccionario global para congestión por cámara
+congestion_data = {}  # camId -> {"nivel": str, "porcentaje": float, "congestion": bool}
 
-# ---------------------------
-# Videos de cámaras
-# ---------------------------
-camera_videos = {
-    1: "videos/cam1.mp4",
-    2: "videos/cam2.mp4",
-    3: "videos/cam3.mp4",
-    4: "videos/cam4.mp4",
-    5: "videos/cam5.mp4",
-    6: "videos/cam6.mp4",
-    7: "videos/cam7.mp4",
-    8: "videos/cam8.mp4",
+# Parámetros
+CAMERAS = {
+    1: r"/Users/limberalcedo/Desktop/Proyecto/SIV_proyecto/backend_siv/videos/cam1.mp4",
+    2: r"/Users/limberalcedo/Desktop/Proyecto/SIV_proyecto/backend_siv/videos/cam2.mp4",
 }
 
-# ---------------------------
-# Variables de seguimiento
-# ---------------------------
-SLOW_THRESHOLD = 5
-SLOW_VEHICLE_COUNT = 3
-CONSECUTIVE_FRAMES = 3
-previous_positions = defaultdict(dict)
-congestion_counter = defaultdict(int)
-incident_memory = defaultdict(list)  # incidentes recientes en memoria
+TRACK_CLASSES = ["car", "truck", "bus", "motorcycle"]
+CONF_THRESHOLD = 0.45
+DIST_THRESHOLD = 70
+MAX_LOST_FRAMES = 25
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+logging.info(f"🧠 Usando dispositivo: {device}")
+
+# Modelo YOLO
+model = YOLO("yolov8n.pt")
 
 # ---------------------------
-# Streaming + detección YOLO
+# 🧩 FUNCIONES AUXILIARES
 # ---------------------------
-def generate_frames_yolo(video_path, cam_id):
-    q = queue.Queue(maxsize=5)
-    cap = cv2.VideoCapture(video_path)
+def iou(bbox1, bbox2):
+    x1, y1, x2, y2 = bbox1
+    x1b, y1b, x2b, y2b = bbox2
+    inter_x1 = max(x1, x1b)
+    inter_y1 = max(y1, y1b)
+    inter_x2 = min(x2, x2b)
+    inter_y2 = min(y2, y2b)
+    inter_area = max(0, inter_x2 - inter_x1) * max(0, inter_y2 - inter_y1)
+    area1 = (x2 - x1) * (y2 - y1)
+    area2 = (x2b - x1b) * (y2b - y1b)
+    union = area1 + area2 - inter_area
+    if union > 0:
+        return inter_area / union
+    return 0
+
+def suprimir_detecciones_similares(detections, umbral_iou=0.6):
+    filtradas = []
+    for i, d1 in enumerate(detections):
+        duplicado = False
+        for d2 in filtradas:
+            if d1[0] == d2[0]:
+                if iou(d1[2], d2[2]) > umbral_iou:
+                    duplicado = True
+                    break
+        if not duplicado:
+            filtradas.append(d1)
+    return filtradas
+
+def draw_label_centered(frame, text, bbox, color):
+    x1, y1, x2, y2 = bbox
+    font_scale = 0.6
+    thickness = 2
+    ((w, h), _) = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+    cx = x1 + (x2 - x1) // 2 - w // 2
+    cy = y1 - 10
+    cv2.rectangle(frame, (cx - 2, cy - h - 2), (cx + w + 2, cy + 4), color, -1)
+    cv2.putText(frame, text, (cx, cy), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness)
+
+# ---------------------------
+# 🎇 MINI VIDEO MINIMALISTA
+# ---------------------------
+def draw_mini_congestion_alert(frame, vehiculos_visibles, camId, frame_count, mini_width=320, mini_height=180):
+    # Redimensionar a mini video
+    mini_frame = cv2.resize(frame, (mini_width, mini_height))
+
+    # Cálculo de congestión (solo para backend)
+    total_area = mini_frame.shape[0] * mini_frame.shape[1]
+    area_ocupada = sum((x2 - x1)*(y2 - y1) for v in vehiculos_visibles for (x1, y1, x2, y2) in [v["bbox"]])
+    count = len(vehiculos_visibles)
+    densidad = area_ocupada / total_area
+    factor_congestion = (count * 0.25) + (densidad * 3.5)
+
+    # Guardar datos de congestión
+    if factor_congestion >= 1.0:
+        nivel = "Alta"
+    elif factor_congestion >= 0.4:
+        nivel = "Media"
+    else:
+        nivel = "Baja"
+
+    congestion_data[camId] = {
+        "nivel": nivel,
+        "porcentaje": min(factor_congestion*100, 100),
+        "congestion": factor_congestion >= 1.0
+    }
+
+    return mini_frame
+
+# ---------------------------
+# 🔁 PROCESAMIENTO DE VIDEO
+# ---------------------------
+def process_video(camId, mini=False):
+    cap = cv2.VideoCapture(CAMERAS[camId])
     if not cap.isOpened():
-        print(f"❌ No se pudo abrir el video: {video_path}")
+        logging.error(f"No se pudo abrir el video: {CAMERAS[camId]}")
         return
 
-    def capture():
-        global congestion_counter, previous_positions, incident_memory
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                continue
-
-            results = model_vehicle(frame)[0]
-            slow_count = 0
-            vehicle_id = 0
-
-            for box, cls, conf in zip(results.boxes.xyxy, results.boxes.cls, results.boxes.conf):
-                x1, y1, x2, y2 = map(int, box)
-                label_name = results.names[int(cls)].lower()
-                conf = float(conf) * 100
-
-                if label_name in ["car", "truck", "bus", "motorbike"]:
-                    prev = previous_positions[cam_id].get(vehicle_id, (x1, y1, x2, y2))
-                    dx = abs((x1 + x2)//2 - (prev[0] + prev[2])//2)
-                    dy = abs((y1 + y2)//2 - (prev[1] + prev[3])//2)
-                    distance = (dx**2 + dy**2)**0.5
-
-                    if distance < SLOW_THRESHOLD:
-                        slow_count += 1
-
-                    previous_positions[cam_id][vehicle_id] = (x1, y1, x2, y2)
-                    vehicle_id += 1
-
-                    # Bounding box
-                    color = (0, 128, 255)
-                    label = f"{label_name} {conf:.1f}%"
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 3)
-                    (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-                    cv2.rectangle(frame, (x1, y1 - h - 10), (x1 + w, y1), color, -1)
-                    cv2.putText(frame, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
-
-            # Lógica de congestión
-            if slow_count >= SLOW_VEHICLE_COUNT and vehicle_id >= 5:
-                congestion_counter[cam_id] += 1
-            else:
-                congestion_counter[cam_id] = 0
-
-            if congestion_counter[cam_id] >= CONSECUTIVE_FRAMES:
-                cv2.putText(frame, "🚨 CONGESTIÓN 🚨", (50, 60),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
-                incident_memory[cam_id].append({"tipo": "congestion", "timestamp": time.time()})
-
-            ret2, buffer = cv2.imencode(".jpg", frame)
-            if ret2 and not q.full():
-                q.put(buffer.tobytes())
-            time.sleep(0.01)
-
-    threading.Thread(target=capture, daemon=True).start()
+    tracked_objects = {}
+    next_id = 0
+    frame_count = 0
 
     while True:
-        frame = q.get()
-        yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+        ret, frame = cap.read()
+        if not ret:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            continue
+
+        results = model(frame, conf=CONF_THRESHOLD, device=device)
+        detections = []
+
+        for r in results:
+            for box in r.boxes:
+                cls = int(box.cls[0])
+                label = r.names[cls]
+                if label in ["motorbike", "bike"]:
+                    label = "motorcycle"
+                if label not in TRACK_CLASSES:
+                    continue
+                conf = float(box.conf[0])
+                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
+                cx, cy = (x1+x2)//2, (y1+y2)//2
+                detections.append((label, conf, (x1, y1, x2, y2), (cx, cy)))
+
+        detections = suprimir_detecciones_similares(detections)
+        vehiculos_visibles = []
+        matched_ids = set()
+        claimed_ids = set()
+
+        for label, conf, bbox, center in detections:
+            best_id, best_dist = None, float("inf")
+            for tid, obj in tracked_objects.items():
+                if tid in claimed_ids or obj["label"] != label:
+                    continue
+                avg_center = obj["centroids"][-1] if obj["centroids"] else center
+                dist = np.hypot(center[0]-avg_center[0], center[1]-avg_center[1])
+                if dist < DIST_THRESHOLD and dist < best_dist:
+                    best_dist, best_id = dist, tid
+            if best_id is None:
+                next_id += 1
+                best_id = next_id
+                tracked_objects[best_id] = {"label": label, "centroids": deque(maxlen=10),
+                                            "bbox": bbox, "conf": conf, "lost_frames": 0}
+            else:
+                claimed_ids.add(best_id)
+            obj = tracked_objects[best_id]
+            obj["centroids"].append(center)
+            obj["bbox"] = bbox
+            obj["conf"] = conf
+            obj["lost_frames"] = 0
+            matched_ids.add(best_id)
+            vehiculos_visibles.append(obj)
+            color_dict = {"car": (0, 255, 0), "truck": (0, 165, 255), "bus": (255, 0, 0), "motorcycle": (255, 0, 255)}
+            draw_label_centered(frame, f"{label} ID:{best_id} ({conf*100:.1f}%)", bbox, color_dict.get(label, (255, 255, 255)))
+
+        # Limpiar objetos perdidos
+        to_delete = []
+        for tid, obj in tracked_objects.items():
+            if tid not in matched_ids:
+                obj["lost_frames"] += 1
+                if obj["lost_frames"] > MAX_LOST_FRAMES:
+                    to_delete.append(tid)
+        for tid in to_delete:
+            del tracked_objects[tid]
+
+        # Dibujar mini o full
+        if mini:
+            frame_to_send = draw_mini_congestion_alert(frame, vehiculos_visibles, camId, frame_count)
+        else:
+            draw_mini_congestion_alert(frame, vehiculos_visibles, camId, frame_count,
+                                       mini_width=frame.shape[1], mini_height=frame.shape[0])
+            frame_to_send = frame
+
+        ret, buffer = cv2.imencode(".jpg", frame_to_send)
+        if ret:
+            yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
+
+        frame_count += 1
+        time.sleep(1/30)
+
+    cap.release()
 
 # ---------------------------
-# Endpoints
+# 🚀 ENDPOINTS
 # ---------------------------
-@app.get("/camera/{cam_id}/stream")
-def camera_stream(cam_id: int):
-    video_path = camera_videos.get(cam_id)
-    if not video_path:
-        return Response(status_code=404, content="Cámara no encontrada")
-    return StreamingResponse(
-        generate_frames_yolo(video_path, cam_id),
-        media_type="multipart/x-mixed-replace; boundary=frame"
-    )
+@app.get("/camera/{camId}/stream")
+def camera_stream(camId: int):
+    if camId not in CAMERAS:
+        return {"error": "Cámara no encontrada"}
+    return StreamingResponse(process_video(camId, mini=False),
+                             media_type="multipart/x-mixed-replace; boundary=frame")
 
-@app.get("/camera/{cam_id}/congestion")
-def check_congestion(cam_id: int):
-    congested = congestion_counter.get(cam_id, 0) >= CONSECUTIVE_FRAMES
-    return {"congestion": congested}
+@app.get("/camera/{camId}/mini")
+def camera_mini(camId: int):
+    if camId not in CAMERAS:
+        return {"error": "Cámara no encontrada"}
+    return StreamingResponse(process_video(camId, mini=True),
+                             media_type="multipart/x-mixed-replace; boundary=frame")
 
-@app.get("/camera/{cam_id}/alerts")
-def get_alerts(cam_id: int):
-    # últimos 5 incidentes
-    return {"alerts": incident_memory.get(cam_id, [])[-5:]}
+@app.get("/camera/{camId}/congestion")
+def camera_congestion(camId: int):
+    return congestion_data.get(camId, {"nivel": "Desconocido", "porcentaje": 0, "congestion": False})

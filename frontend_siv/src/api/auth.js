@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:8000"; // tu FastAPI
+const API_URL = "http://127.0.0.1:8000"; // FastAPI backend
 
 export const loginUser = async (user) => {
   const res = await fetch(`${API_URL}/login`, {
