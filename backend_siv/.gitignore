@@ -1,0 +1,41 @@
+# ==============================
+# Backend Python / FastAPI / YOLO
+# ==============================
+
+# Entorno virtual
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Variables de entorno
+.env
+*.env
+
+# Logs y temporales
+*.log
+*.tmp
+logs/
+
+# Base de datos
+*.sqlite3
+*.db
+*.dump
+
+# Archivos generados / YOLO / videos
+*.pt
+backend_siv/videos/*
+*.mp4
+!backend_siv/videos/.gitkeep   # conservar .gitkeep
+
+# IDEs
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
