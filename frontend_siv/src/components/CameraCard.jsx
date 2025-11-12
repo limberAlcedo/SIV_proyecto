@@ -1,147 +1,195 @@
-// src/components/CameraCard.jsx
-import React, { useState, useEffect } from "react";
-import Card from "react-bootstrap/Card";
-import Modal from "react-bootstrap/Modal";
-import axios from "axios";
+import React, { useEffect, useState } from "react";
 
-const CameraCard = ({ title, camId }) => {
-  const [showModal, setShowModal] = useState(false);
-  const [congestionInfo, setCongestionInfo] = useState({ nivel: "Desconocido", porcentaje: 0, congestion: false });
-  const baseUrl = "http://127.0.0.1:8000";
+const VEHICLE_MEDIUM = 5;
+const VEHICLE_HIGH = 10;
+const BACKEND_URL = "http://127.0.0.1:8000";
 
+const CameraCard = ({ camId, title }) => {
+  const [vehicles, setVehicles] = useState(0);
+  const [online, setOnline] = useState(true);
+  const [detenidos, setDetenidos] = useState(0);
+
+  // 🔌 Verificar si la cámara está online
   useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const data = await fetch(`${BACKEND_URL}/camera/${camId}/status`).then(res => res.json());
+        setOnline(data.status === "online");
+      } catch (err) {
+        setOnline(false);
+      }
+    };
+    checkStatus();
+    const intervalStatus = setInterval(checkStatus, 5000);
+    return () => clearInterval(intervalStatus);
+  }, [camId]);
+
+  // 🚗 Obtener conteo de vehículos
+  useEffect(() => {
+    if (!online) return;
     const interval = setInterval(async () => {
       try {
-        const res = await axios.get(`${baseUrl}/camera/${camId}/congestion`);
-        setCongestionInfo(res.data);
+        const data = await fetch(`${BACKEND_URL}/camera/${camId}/congestion`).then(res => res.json());
+        setVehicles(data.vehiculos);
       } catch (err) {
         console.error(err);
       }
     }, 2000);
     return () => clearInterval(interval);
-  }, [camId]);
+  }, [camId, online]);
 
-  const getBadgeClass = (nivel) => {
-    switch(nivel) {
-      case "Alta": return "congestion-badge alta";
-      case "Media": return "congestion-badge media";
-      case "Baja": return "congestion-badge baja";
-      default: return "congestion-badge desconocida";
-    }
-  };
+  // 🛑 Obtener cantidad de vehículos detenidos
+  useEffect(() => {
+    if (!online) return;
+    const interval = setInterval(async () => {
+      try {
+        const data = await fetch(`${BACKEND_URL}/camera/${camId}/detenidos`).then(res => res.json());
+        setDetenidos(data.detenidos || 0);
+      } catch (err) {
+        console.error(err);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [camId, online]);
+
+  // 🧭 Determinar nivel de congestión
+  let nivel = "Baja";
+  let color = "#16a34a";
+  if (vehicles > VEHICLE_HIGH) {
+    nivel = "Alta";
+    color = "#dc2626";
+  } else if (vehicles > VEHICLE_MEDIUM) {
+    nivel = "Media";
+    color = "#facc15";
+  }
 
   return (
-    <>
-      <Card className="mb-4 shadow-lg camera-card" onClick={() => setShowModal(true)}>
-        <div className="position-relative">
-          {/* Mini video */}
-          <img
-            src={`${baseUrl}/camera/${camId}/mini`}
-            alt={title}
-            className="camera-img"
-          />
+    <div style={{ ...styles.cardWrapper, opacity: online ? 1 : 0.5 }}>
+      <h5 style={styles.title}>{title}</h5>
 
-          {/* Badge de congestión */}
-          <div className={getBadgeClass(congestionInfo.nivel)}>
-            🚨 {Math.round(congestionInfo.porcentaje)}%
-          </div>
+      {/* 🔴 Badge EN VIVO */}
+      {online && (
+        <div style={styles.liveBadge}>
+          EN VIVO 🔴
         </div>
+      )}
 
-        <Card.Body className="text-center">
-          <Card.Title className="camera-title">{title}</Card.Title>
-        </Card.Body>
-      </Card>
+      {/* 🖼️ Stream o estado offline */}
+      {online ? (
+        <img
+          src={`${BACKEND_URL}/camera/${camId}/stream`}
+          alt={title}
+          style={{ width: "100%", display: "block" }}
+        />
+      ) : (
+        <div style={styles.offlineContainer}>
+          OFFLINE ❌
+        </div>
+      )}
 
-      {/* Modal con video completo */}
-      <Modal show={showModal} onHide={() => setShowModal(false)} size="xl" centered>
-        <Modal.Header closeButton>
-          <Modal.Title>{title}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body className="d-flex justify-content-center">
-          <img
-            src={`${baseUrl}/camera/${camId}/stream`}
-            alt={title}
-            style={{
-              width: "100%",
-              maxHeight: "80vh",
-              objectFit: "contain",
-              borderRadius: "12px",
-            }}
-          />
-        </Modal.Body>
-      </Modal>
+      {/* 🚦 Badge congestión */}
+      {online && (
+        <div style={{ ...styles.congestionBadge, backgroundColor: color }}>
+          🚗 {nivel}
+        </div>
+      )}
 
-      {/* Estilos */}
-      <style>{`
-        .camera-card {
-          border-radius: 20px;
-          overflow: hidden;
-          cursor: pointer;
-          transition: transform 0.3s, box-shadow 0.3s;
-          background: linear-gradient(145deg, #fdfdfd, #eaeaea);
-        }
-
-        .camera-card:hover {
-          transform: translateY(-5px);
-          box-shadow: 0 15px 25px rgba(0, 0, 0, 0.2);
-        }
-
-        .camera-img {
-          width: 100%;
-          height: 180px;
-          object-fit: cover;
-          border-bottom: 3px solid #dee2e6;
-          transition: transform 0.3s;
-        }
-
-        .camera-card:hover .camera-img {
-          transform: scale(1.03);
-        }
-
-        .camera-title {
-          color: #495057;
-          font-weight: 600;
-          font-size: 1.1rem;
-        }
-
-        .congestion-badge {
-          position: absolute;
-          top: 10px;
-          right: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 1rem;
-          padding: 6px 10px;
-          border-radius: 12px;
-          color: #fff;
-          z-index: 3;
-          box-shadow: 0 0 8px rgba(255,0,0,0.7), 0 0 15px rgba(255,0,0,0.4);
-          animation: blink 1.2s infinite;
-        }
-
-        .congestion-badge.alta {
-          background: linear-gradient(135deg, #ff4d4d, #ff1a1a);
-          font-size: 1.2rem;
-        }
-
-        .congestion-badge.media {
-          background: linear-gradient(135deg, #ffc107, #ffea00);
-          font-size: 1.1rem;
-        }
-
-        .congestion-badge.baja {
-          background: linear-gradient(135deg, #28a745, #63e673);
-          font-size: 1rem;
-        }
-
-        @keyframes blink {
-          0%, 50%, 100% { opacity: 1; }
-          25%, 75% { opacity: 0.4; }
-        }
-      `}</style>
-    </>
+      {/* 🛑 Badge de vehículos detenidos */}
+      {online && detenidos > 0 && (
+        <div style={styles.alertBadge}>
+          🚨 {detenidos} vehículo{detenidos > 1 ? "s" : ""} detenido
+        </div>
+      )}
+    </div>
   );
 };
+
+// 🎨 Estilos visuales
+const styles = {
+  cardWrapper: {
+    position: "relative",
+    borderRadius: "12px",
+    overflow: "hidden",
+    boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
+    transition: "transform 0.3s, box-shadow 0.3s",
+  },
+  title: {
+    textAlign: "center",
+    margin: 0,
+    padding: "10px",
+    background: "linear-gradient(90deg, #00bcd4, #1e3a8a)",
+    color: "#fff",
+    fontWeight: 700,
+    textShadow: "0 0 6px rgba(0,0,0,0.5)",
+  },
+  liveBadge: {
+    position: "absolute",
+    top: "10px",
+    left: "8px",
+    padding: "3px 10px",
+    borderRadius: "10px",
+    fontSize: "0.75rem",
+    fontWeight: 700,
+    color: "#fff",
+    backgroundColor: "#e53935",
+    boxShadow: "0 0 6px #e53935, 0 0 12px #e53935aa",
+    textShadow: "0 0 3px #fff",
+    backdropFilter: "blur(1.5px)",
+    animation: "pulse 1.5s infinite",
+  },
+  congestionBadge: {
+    position: "absolute",
+    top: "10px",
+    right: "10px",
+    padding: "4px 10px",
+    borderRadius: "14px",
+    fontSize: "0.75rem",
+    fontWeight: 700,
+    color: "#fff",
+    textAlign: "center",
+    boxShadow: "0 0 10px rgba(0,0,0,0.5)",
+  },
+  alertBadge: {
+    position: "absolute",
+    bottom: "10px",
+    left: "50%",
+    transform: "translateX(-50%)",
+    backgroundColor: "rgba(220, 38, 38, 0.9)",
+    color: "#fff",
+    padding: "6px 14px",
+    borderRadius: "10px",
+    fontWeight: 700,
+    fontSize: "0.8rem",
+    animation: "blink 1.2s infinite",
+    boxShadow: "0 0 12px rgba(255, 0, 0, 0.7)",
+  },
+  offlineContainer: {
+    width: "100%",
+    height: "200px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#333",
+    color: "#fff",
+    fontWeight: "bold",
+  },
+};
+
+// 🔄 Animaciones CSS
+if (typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.innerHTML = `
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.75; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 export default CameraCard;

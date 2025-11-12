@@ -1,59 +1,133 @@
-// frontend_siv/src/components/AppNavbar.js
+// src/layout/Navbar.jsx
 import React from "react";
 import { Navbar, Container, Nav, Button, Dropdown } from "react-bootstrap";
-import 'bootstrap/dist/css/bootstrap.min.css';
+import { NavLink, useNavigate } from "react-router-dom";
+import "bootstrap/dist/css/bootstrap.min.css";
 
 const navLinks = [
-  { href: "/", label: "Inicio" },
-  { href: "#camaras", label: "Cámaras" },
-  { href: "#reportes", label: "Reportes" },
-  { href: "#configuracion", label: "Configuración" },
+  { path: "/camaras", label: "Cámaras" },
+  { path: "/reportes", label: "Reportes" },
+  { path: "/configuracion", label: "Configuración" },
 ];
 
-const AppNavbar = () => (
-  <Navbar bg="dark" variant="dark" expand="lg" sticky="top" className="shadow-sm">
-    <Container fluid>
-      <Navbar.Brand href="/" className="fw-bold text-uppercase" style={{ letterSpacing: "1px" }}>
-        SIV 2.0 Dashboard
-      </Navbar.Brand>
+const AppNavbar = () => {
+  const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem("user"));
 
-      <Navbar.Toggle aria-controls="main-navbar" />
-      <Navbar.Collapse id="main-navbar">
-        <Nav className="ms-auto align-items-center">
-          {navLinks.map(link => (
-            <Nav.Link key={link.href} href={link.href}>{link.label}</Nav.Link>
-          ))}
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    navigate("/");
+  };
 
-          <Button
-            className="ms-2 fw-bold"
-            style={{
-              background: "linear-gradient(90deg, #ff9500, #ffaa33)",
-              color: "#fff",
-              border: "none",
-              borderRadius: "50px",
-              boxShadow: "0 0 6px #ff9500, 0 0 12px #ffaa33",
-              transition: "all 0.3s ease, color 0.3s ease",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 0 12px #ff9500, 0 0 18px #ffaa33"; e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.color = "#000"; }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 0 6px #ff9500, 0 0 12px #ffaa33"; e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.color = "#fff"; }}
-            onClick={() => alert("Login clickeado")}
-          >
-            Login
-          </Button>
+  return (
+    <Navbar
+      expand="lg"
+      bg="dark"
+      variant="dark"
+      sticky="top"
+      className="shadow-sm border-bottom border-warning-subtle"
+      style={{
+        backdropFilter: "blur(8px)",
+        background: "rgba(0, 0, 0, 0.9)",
+      }}
+    >
+      <Container fluid>
+        {/* ---------- Brand ---------- */}
+        <Navbar.Brand
+          onClick={() => navigate("/camaras")}
+          role="button"
+          aria-label="Ir al dashboard"
+          className="fw-bold text-uppercase d-flex align-items-center gap-2 text-warning"
+          style={{
+            cursor: "pointer",
+            fontSize: "1.25rem",
+            transition: "all 0.3s ease",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "#ffd166")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "#ffbb33")}
+        >
+          🚦 <span>SIV Dashboard</span>
+        </Navbar.Brand>
 
-          <Dropdown align="end" className="ms-3">
-            <Dropdown.Toggle variant="dark" id="dropdown-user" style={{ border: "none", background: "transparent", fontSize: "1.5rem" }}>👤</Dropdown.Toggle>
-            <Dropdown.Menu>
-              <Dropdown.Item href="#perfil">Mi Perfil</Dropdown.Item>
-              <Dropdown.Item href="#config">Configuración</Dropdown.Item>
-              <Dropdown.Divider />
-              <Dropdown.Item href="#logout">Cerrar sesión</Dropdown.Item>
-            </Dropdown.Menu>
-          </Dropdown>
-        </Nav>
-      </Navbar.Collapse>
-    </Container>
-  </Navbar>
-);
+        <Navbar.Toggle aria-controls="main-navbar" />
+
+        {/* ---------- Menu ---------- */}
+        <Navbar.Collapse id="main-navbar">
+          <Nav className="ms-auto align-items-center gap-3">
+            {user &&
+              navLinks.map(({ path, label }) => (
+                <NavLink
+                  key={path}
+                  to={path}
+                  className={({ isActive }) =>
+                    `fw-semibold nav-link ${
+                      isActive ? "text-warning" : "text-light"
+                    }`
+                  }
+                  style={{ transition: "color 0.3s ease, transform 0.2s ease" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                >
+                  {label}
+                </NavLink>
+              ))}
+
+            {/* ---------- Login / Usuario ---------- */}
+            {!user ? (
+              <Button
+                variant="warning"
+                className="fw-semibold rounded-pill px-4 shadow-sm"
+                style={{
+                  background: "linear-gradient(90deg, #ff9500, #ffaa33)",
+                  border: "none",
+                  boxShadow: "0 0 8px #ff9500, 0 0 14px #ffaa33",
+                  transition: "all 0.3s ease",
+                  color: "#000",
+                }}
+                onClick={() => navigate("/")}
+              >
+                Iniciar sesión
+              </Button>
+            ) : (
+              <Dropdown align="end">
+                <Dropdown.Toggle
+                  id="dropdown-user"
+                  variant="outline-warning"
+                  className="rounded-pill d-flex align-items-center px-3 py-1 text-warning border-warning"
+                  style={{
+                    background: "transparent",
+                    fontWeight: "500",
+                    fontSize: "0.95rem",
+                  }}
+                >
+                  👤 <span className="ms-2">{user.email || "Usuario"}</span>
+                </Dropdown.Toggle>
+
+                <Dropdown.Menu
+                  className="shadow border-0 rounded-3 mt-2"
+                  style={{ fontSize: "0.95rem", minWidth: "180px" }}
+                >
+                  <Dropdown.Item onClick={() => alert("Perfil próximamente")}>
+                    Mi perfil
+                  </Dropdown.Item>
+                  <Dropdown.Item onClick={() => alert("Configuración próximamente")}>
+                    Configuración
+                  </Dropdown.Item>
+                  <Dropdown.Divider />
+                  <Dropdown.Item
+                    onClick={handleLogout}
+                    className="text-danger fw-semibold"
+                  >
+                    Cerrar sesión
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
+            )}
+          </Nav>
+        </Navbar.Collapse>
+      </Container>
+    </Navbar>
+  );
+};
 
 export default AppNavbar;
