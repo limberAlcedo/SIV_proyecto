@@ -9,50 +9,30 @@ const CameraCard = ({ camId, title }) => {
   const [online, setOnline] = useState(true);
   const [detenidos, setDetenidos] = useState(0);
 
-  // 🔌 Verificar si la cámara está online
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const data = await fetch(`${BACKEND_URL}/camera/${camId}/status`).then(res => res.json());
-        setOnline(data.status === "online");
-      } catch (err) {
-        setOnline(false);
+  const updateData = async () => {
+    try {
+      const [statusRes, congestionRes, detenidosRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/camera/${camId}/status`).then((r) => r.json()),
+        fetch(`${BACKEND_URL}/camera/${camId}/congestion`).then((r) => r.json()),
+        fetch(`${BACKEND_URL}/camera/${camId}/detenidos`).then((r) => r.json()),
+      ]);
+      setOnline(statusRes.status === "online");
+      if (statusRes.status === "online") {
+        setVehicles(congestionRes.vehiculos || 0);
+        setDetenidos(detenidosRes.detenidos || 0);
       }
-    };
-    checkStatus();
-    const intervalStatus = setInterval(checkStatus, 5000);
-    return () => clearInterval(intervalStatus);
+    } catch {
+      setOnline(false);
+    }
+  };
+
+  useEffect(() => {
+    updateData();
+    const interval = setInterval(updateData, 4000);
+    return () => clearInterval(interval);
   }, [camId]);
 
-  // 🚗 Obtener conteo de vehículos
-  useEffect(() => {
-    if (!online) return;
-    const interval = setInterval(async () => {
-      try {
-        const data = await fetch(`${BACKEND_URL}/camera/${camId}/congestion`).then(res => res.json());
-        setVehicles(data.vehiculos);
-      } catch (err) {
-        console.error(err);
-      }
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [camId, online]);
-
-  // 🛑 Obtener cantidad de vehículos detenidos
-  useEffect(() => {
-    if (!online) return;
-    const interval = setInterval(async () => {
-      try {
-        const data = await fetch(`${BACKEND_URL}/camera/${camId}/detenidos`).then(res => res.json());
-        setDetenidos(data.detenidos || 0);
-      } catch (err) {
-        console.error(err);
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [camId, online]);
-
-  // 🧭 Determinar nivel de congestión
+  // Nivel de congestión
   let nivel = "Baja";
   let color = "#16a34a";
   if (vehicles > VEHICLE_HIGH) {
@@ -64,37 +44,36 @@ const CameraCard = ({ camId, title }) => {
   }
 
   return (
-    <div style={{ ...styles.cardWrapper, opacity: online ? 1 : 0.5 }}>
-      <h5 style={styles.title}>{title}</h5>
+    <div style={{ ...styles.card, opacity: online ? 1 : 0.7 }}>
+      {/* Header */}
+      <div style={styles.header}>
+        <h5 style={styles.title}>{title}</h5>
+      </div>
 
-      {/* 🔴 Badge EN VIVO */}
+      {/* Badges */}
       {online && (
-        <div style={styles.liveBadge}>
-          EN VIVO 🔴
+        <div style={styles.badgeContainer}>
+          <div style={styles.liveBadge}>EN VIVO 🔴</div>
+          <div style={{ ...styles.badge, backgroundColor: color, marginLeft: "auto" }}>
+            🚗 {nivel}
+          </div>
         </div>
       )}
 
-      {/* 🖼️ Stream o estado offline */}
-      {online ? (
-        <img
-          src={`${BACKEND_URL}/camera/${camId}/stream`}
-          alt={title}
-          style={{ width: "100%", display: "block" }}
-        />
-      ) : (
-        <div style={styles.offlineContainer}>
-          OFFLINE ❌
-        </div>
-      )}
+      {/* Video o placeholder */}
+      <div style={styles.streamContainer}>
+        {online ? (
+          <img
+            src={`${BACKEND_URL}/camera/${camId}/stream`}
+            alt={title}
+            style={styles.stream}
+          />
+        ) : (
+          <div style={styles.offline}>OFFLINE ❌</div>
+        )}
+      </div>
 
-      {/* 🚦 Badge congestión */}
-      {online && (
-        <div style={{ ...styles.congestionBadge, backgroundColor: color }}>
-          🚗 {nivel}
-        </div>
-      )}
-
-      {/* 🛑 Badge de vehículos detenidos */}
+      {/* Alerta de vehículos detenidos */}
       {online && detenidos > 0 && (
         <div style={styles.alertBadge}>
           🚨 {detenidos} vehículo{detenidos > 1 ? "s" : ""} detenido
@@ -104,89 +83,115 @@ const CameraCard = ({ camId, title }) => {
   );
 };
 
-// 🎨 Estilos visuales
 const styles = {
-  cardWrapper: {
+  card: {
     position: "relative",
-    borderRadius: "12px",
+    borderRadius: "20px",
+    background: "linear-gradient(145deg, rgba(4,15,40,0.95), rgba(0,188,212,0.25))",
     overflow: "hidden",
-    boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
-    transition: "transform 0.3s, box-shadow 0.3s",
+    backdropFilter: "blur(8px)",
+    transition: "all 0.3s ease",
+    cursor: "pointer",
+    width: "100%",
+    height: "280px",
+    minWidth: "340px",
+    maxWidth: "400px",
+    boxShadow: "0 6px 18px rgba(0,0,0,0.2)",
+  },
+  header: {
+    display: "flex",
+    justifyContent: "center",
+    background: "linear-gradient(90deg, #0284c7, #1e3a8a)",
+    color: "#fff",
+    padding: "10px 12px",
+    fontWeight: 700,
+    borderTopLeftRadius: "20px",
+    borderTopRightRadius: "20px",
+    textShadow: "0 0 5px rgba(0,0,0,0.4)",
   },
   title: {
-    textAlign: "center",
     margin: 0,
-    padding: "10px",
-    background: "linear-gradient(90deg, #00bcd4, #1e3a8a)",
-    color: "#fff",
-    fontWeight: 700,
-    textShadow: "0 0 6px rgba(0,0,0,0.5)",
+    fontSize: "1.1rem",
+    letterSpacing: "0.5px",
+  },
+  badgeContainer: {
+    position: "absolute",
+    top: "6px", 
+    left: "12px",
+    right: "12px",
+    display: "flex",
+    alignItems: "center",
   },
   liveBadge: {
-    position: "absolute",
-    top: "10px",
-    left: "8px",
-    padding: "3px 10px",
-    borderRadius: "10px",
+    padding: "4px 10px", 
+    borderRadius: "12px",
     fontSize: "0.75rem",
-    fontWeight: 700,
+    fontWeight: 600,
     color: "#fff",
     backgroundColor: "#e53935",
-    boxShadow: "0 0 6px #e53935, 0 0 12px #e53935aa",
-    textShadow: "0 0 3px #fff",
-    backdropFilter: "blur(1.5px)",
-    animation: "pulse 1.5s infinite",
+    boxShadow: "0 0 8px #e53935, 0 0 14px #e53935aa",
+    animation: "pulse 1.4s infinite",
   },
-  congestionBadge: {
-    position: "absolute",
-    top: "10px",
-    right: "10px",
-    padding: "4px 10px",
-    borderRadius: "14px",
+  badge: {
+    padding: "4px 10px", 
+    borderRadius: "12px",
     fontSize: "0.75rem",
     fontWeight: 700,
     color: "#fff",
-    textAlign: "center",
-    boxShadow: "0 0 10px rgba(0,0,0,0.5)",
+    boxShadow: "0 0 8px rgba(0,0,0,0.4)",
+  },
+  streamContainer: {
+    width: "100%",
+    height: "calc(100% - 45px)",
+    backgroundColor: "#000",
+  },
+  stream: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    borderRadius: "0 0 20px 20px",
+  },
+  offline: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    height: "100%",
+    color: "#fff",
+    fontWeight: 600,
+    fontSize: "1rem",
+    background: "linear-gradient(180deg, #1f2937, #111827)",
   },
   alertBadge: {
     position: "absolute",
-    bottom: "10px",
+    bottom: "14px",
     left: "50%",
     transform: "translateX(-50%)",
     backgroundColor: "rgba(220, 38, 38, 0.9)",
     color: "#fff",
-    padding: "6px 14px",
-    borderRadius: "10px",
+    padding: "8px 16px",
+    borderRadius: "14px",
     fontWeight: 700,
-    fontSize: "0.8rem",
+    fontSize: "0.9rem",
     animation: "blink 1.2s infinite",
-    boxShadow: "0 0 12px rgba(255, 0, 0, 0.7)",
-  },
-  offlineContainer: {
-    width: "100%",
-    height: "200px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#333",
-    color: "#fff",
-    fontWeight: "bold",
+    boxShadow: "0 0 18px rgba(255, 0, 0, 0.8)",
   },
 };
 
-// 🔄 Animaciones CSS
+// Animaciones CSS
 if (typeof document !== "undefined") {
   const style = document.createElement("style");
   style.innerHTML = `
     @keyframes pulse {
-      0% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.05); opacity: 0.75; }
-      100% { transform: scale(1); opacity: 1; }
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.06); }
     }
     @keyframes blink {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.3; }
+    }
+    .camera-card:hover {
+      transform: scale(1.02);
+      box-shadow: 0 12px 25px rgba(0,191,255,0.35);
     }
   `;
   document.head.appendChild(style);

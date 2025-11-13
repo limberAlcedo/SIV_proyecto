@@ -1,9 +1,19 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import CameraCard from "../components/CameraCard";
+import { motion } from "framer-motion";
+import { Activity, AlertTriangle, Camera } from "lucide-react";
 
-const BACKEND_URL = "http://127.0.0.1:8000"; // Cambia si tu backend usa otro puerto
+const BACKEND_URL = "http://127.0.0.1:8000";
 
-const Camaras = () => {
+export default function Camaras() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const user = localStorage.getItem("user");
+    if (!user) navigate("/");
+  }, [navigate]);
+
   const cameras = [
     { id: 1, title: "CCTV 1.1" },
     { id: 2, title: "CCTV 1.2" },
@@ -18,269 +28,304 @@ const Camaras = () => {
   const [alerts, setAlerts] = useState(0);
   const [flow, setFlow] = useState(0);
   const [activeCameras, setActiveCameras] = useState(0);
-  const [alertList, setAlertList] = useState([]);
   const [focusedCam, setFocusedCam] = useState(null);
 
-  // 📊 Cargar KPIs y alertas
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch(`${BACKEND_URL}/stats`);
-        if (res.ok) {
-          const data = await res.json();
-          setActiveCameras(data.camaras_activas);
-          setAlerts(data.alertas);
-          setFlow(data.flujo_estimado);
-        }
-      } catch (err) {
-        console.error("Error al obtener estadísticas:", err);
-      }
-    };
+        let onlineCount = 0;
+        let totalDetenidos = 0;
 
-    const fetchAlerts = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/alerts`);
-        if (res.ok) {
-          const data = await res.json();
-          setAlertList(data.alertas);
-        }
-      } catch (err) {
-        console.error("Error al obtener alertas:", err);
-      }
-    };
-
-    // 🚨 Nueva función: obtener vehículos detenidos
-    const fetchStoppedVehicles = async () => {
-      try {
-        const newAlerts = [];
         for (const cam of cameras) {
-          const res = await fetch(`${BACKEND_URL}/camera/${cam.id}/detenidos`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.detenidos > 0) {
-              newAlerts.push(
-                `${cam.title}: ${data.detenidos} vehículo${
-                  data.detenidos > 1 ? "s" : ""
-                } detenido${data.detenidos > 1 ? "s" : ""} 🚨`
-              );
-            }
-          }
+          try {
+            const statusRes = await fetch(`${BACKEND_URL}/camera/${cam.id}/status`);
+            const statusData = await statusRes.json();
+            if (statusData.status === "online") onlineCount++;
+          } catch {}
+          try {
+            const detenidosRes = await fetch(`${BACKEND_URL}/camera/${cam.id}/detenidos`);
+            const data = await detenidosRes.json();
+            totalDetenidos += data.detenidos || 0;
+          } catch {}
         }
-        // Si hay nuevos, los mezclamos con las alertas recientes (sin duplicar)
-        if (newAlerts.length > 0) {
-          setAlertList((prev) => {
-            const combined = [...new Set([...newAlerts, ...prev])];
-            return combined.slice(0, 10); // limitar a 10 alertas visibles
-          });
-        }
+
+        setActiveCameras(onlineCount);
+        setAlerts(totalDetenidos);
       } catch (err) {
-        console.error("Error al obtener vehículos detenidos:", err);
+        console.error(err);
       }
     };
 
-    fetchStats();
-    fetchAlerts();
-    fetchStoppedVehicles();
-
-    const interval = setInterval(() => {
-      fetchStats();
-      fetchAlerts();
-      fetchStoppedVehicles();
-    }, 5000);
-
+    fetchData();
+    const interval = setInterval(fetchData, 6000);
     return () => clearInterval(interval);
   }, []);
 
   return (
-    <div style={styles.container}>
-      {/* Header */}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.8 }}
+      style={styles.page}
+    >
       <header style={styles.header}>
-        <h1 style={styles.title}>🚦 Sistema de Detección Vehicular</h1>
+        <motion.h1
+          style={styles.title}
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+        >
+          🚦 Sistema de Detección Vehicular
+        </motion.h1>
         <p style={styles.subtitle}>
-          Monitoreo en tiempo real con IA (YOLOv8 + FastAPI)
+          Monitoreo Inteligente con IA (YOLOv8 + FastAPI)
         </p>
       </header>
 
       {/* KPIs */}
       {!focusedCam && (
-        <div style={styles.kpiContainer} className="container">
-          <div className="row">
-            <div className="col-md-4 mb-3">
-              <div style={{ ...styles.kpiCard, backgroundColor: "#1e3a8a" }}>
-                <h6 style={styles.kpiLabel}>Cámaras activas</h6>
-                <p style={styles.kpiValue}>
-                  {activeCameras} / {cameras.length}
-                </p>
-              </div>
-            </div>
-            <div className="col-md-4 mb-3">
-              <div style={{ ...styles.kpiCard, backgroundColor: "#b91c1c" }}>
-                <h6 style={styles.kpiLabel}>Alertas recientes</h6>
-                <p style={styles.kpiValue}>{alerts}</p>
-              </div>
-            </div>
-            <div className="col-md-4 mb-3">
-              <div style={{ ...styles.kpiCard, backgroundColor: "#047857" }}>
-                <h6 style={styles.kpiLabel}>Flujo estimado</h6>
-                <p style={styles.kpiValue}>{flow} / min</p>
-              </div>
-            </div>
-          </div>
+        <div style={styles.kpiContainer}>
+          <KpiCard
+            icon={<Camera size={28} />}
+            label="Cámaras activas"
+            value={`${activeCameras} / ${cameras.length}`}
+            gradient={["#3b82f6", "#2563eb"]}
+          />
+
+          <AlertKpi alerts={alerts} />
+
+          <KpiCard
+            icon={<Activity size={28} />}
+            label="Flujo estimado"
+            value={`${flow} / min`}
+            gradient={["#34d399", "#10b981"]}
+          />
         </div>
       )}
 
-      {/* 📋 Alertas */}
-      {!focusedCam && (
-        <div className="container mt-4 text-center">
-          <h5 style={{ color: "#ffcc00" }}>🚨 Alertas recientes</h5>
-          <div style={styles.alertBox}>
-            {alertList.length > 0 ? (
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                {alertList.map((alert, idx) => (
-                  <li key={idx} style={styles.alertItem}>
-                    {alert}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p style={{ color: "#999" }}>Sin alertas recientes</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Cámaras */}
+      {/* Grid de cámaras */}
       <div
-        className="container mt-4"
         style={{
+          ...styles.gridContainer,
           filter: focusedCam ? "blur(6px)" : "none",
-          transition: "all 0.3s ease",
           pointerEvents: focusedCam ? "none" : "auto",
         }}
       >
-        <div className="row">
-          {cameras.map((cam) => (
-            <div key={cam.id} className="col-md-6 col-lg-3 mb-4">
-              <div
-                style={styles.cardWrapper}
-                onClick={() => setFocusedCam(cam)}
-              >
-                <CameraCard title={cam.title} camId={cam.id} />
-              </div>
-            </div>
-          ))}
-        </div>
+        {cameras.map((cam) => (
+          <motion.div
+            key={cam.id}
+            whileHover={{ scale: 1.03 }}
+            transition={{ duration: 0.25 }}
+            style={styles.cameraWrapper}
+            onClick={() => setFocusedCam(cam)}
+          >
+            <CameraCard title={cam.title} camId={cam.id} />
+          </motion.div>
+        ))}
       </div>
 
-      {/* Vista ampliada */}
+      {/* Fullscreen cámara */}
       {focusedCam && (
-        <div style={styles.focusOverlay}>
-          <div style={styles.focusCard}>
-            <CameraCard title={focusedCam.title} camId={focusedCam.id} />
-            <button style={styles.closeBtn} onClick={() => setFocusedCam(null)}>
-              ✕
-            </button>
-            <h3 style={styles.focusTitle}>{focusedCam.title}</h3>
-          </div>
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          style={styles.fullscreenWrapper}
+        >
+          <motion.div style={styles.fullscreenContent} initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }} transition={{ duration: 0.3 }}>
+            <img
+              src={`${BACKEND_URL}/camera/${focusedCam.id}/stream`}
+              alt={focusedCam.title}
+              style={styles.fullscreenImg}
+            />
+            <button style={styles.closeButton} onClick={() => setFocusedCam(null)}>✕</button>
+          </motion.div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
-};
+}
 
-// 🎨 Estilos
+// KPI genérico
+const KpiCard = ({ icon, label, value, gradient }) => (
+  <motion.div
+    style={{
+      ...styles.kpiCard,
+      background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})`,
+      color: "#fff",
+    }}
+    whileHover={{ scale: 1.05 }}
+  >
+    {icon}
+    <h5 style={styles.kpiLabel}>{label}</h5>
+    <p style={styles.kpiValue}>{value}</p>
+  </motion.div>
+);
+
+// KPI de alertas
+const AlertKpi = ({ alerts }) => (
+  <motion.div
+    style={{
+      ...styles.kpiCard,
+      border: alerts > 0 ? "3px solid #ef4444" : "2px solid #ccc",
+      background: alerts > 0 ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.08)",
+      color: alerts > 0 ? "#ef4444" : "#9ca3af",
+      position: "relative",
+      overflow: "hidden",
+    }}
+    animate={
+      alerts > 0
+        ? {
+            scale: [1, 1.1, 1],
+            boxShadow: [
+              "0 0 0px rgba(239,68,68,0.6)",
+              "0 0 30px rgba(239,68,68,1)",
+              "0 0 0px rgba(239,68,68,0.6)",
+            ],
+            rotate: [0, 2, -2, 0],
+          }
+        : {}
+    }
+    transition={{ duration: 1, repeat: Infinity, repeatType: "loop" }}
+  >
+    <AlertTriangle color={alerts > 0 ? "#ef4444" : "#9ca3af"} size={28} />
+    <h5 style={styles.kpiLabel}>Alertas</h5>
+    <p style={{ ...styles.kpiValue, fontSize: "1.8rem" }}>{alerts}</p>
+
+    {alerts > 0 && (
+      <>
+        <motion.div
+          style={{
+            position: "absolute",
+            top: -10,
+            right: -10,
+            width: 20,
+            height: 20,
+            borderRadius: "50%",
+            backgroundColor: "#ef4444",
+            opacity: 0.7,
+          }}
+          animate={{ scale: [1, 1.5, 1], opacity: [0.7, 1, 0.7] }}
+          transition={{ duration: 0.7, repeat: Infinity }}
+        />
+        <motion.div
+          style={{
+            position: "absolute",
+            bottom: -10,
+            left: -10,
+            width: 15,
+            height: 15,
+            borderRadius: "50%",
+            backgroundColor: "#f87171",
+            opacity: 0.6,
+          }}
+          animate={{ scale: [1, 1.4, 1], opacity: [0.6, 1, 0.6] }}
+          transition={{ duration: 0.8, repeat: Infinity, delay: 0.2 }}
+        />
+      </>
+    )}
+  </motion.div>
+);
+
+// Estilos
 const styles = {
-  container: {
-    background: "linear-gradient(to bottom, #111, #1c1c2e)",
-    color: "#fff",
+  page: {
+    width: "100%",
     minHeight: "100vh",
-    paddingBottom: "60px",
-    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    position: "relative",
+    background: "linear-gradient(135deg, #1e3a8a, #3b82f6)",
+    color: "#f9fafb",
+    padding: "40px 0 80px",
+    fontFamily: "'Poppins', sans-serif",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
   },
-  header: {
-    textAlign: "center",
-    paddingTop: "30px",
-    paddingBottom: "20px",
+  header: { textAlign: "center", marginBottom: "35px" },
+  title: { fontSize: "2.2rem", fontWeight: 700, color: "#fff" },
+  subtitle: { fontSize: "1rem", color: "#d1d5db", marginTop: "6px" },
+
+  kpiContainer: {
+    display: "flex",
+    justifyContent: "center",
+    gap: "25px",
+    flexWrap: "wrap",
+    marginBottom: "30px",
   },
-  title: {
-    color: "#00bcd4",
-    fontWeight: 700,
-    marginBottom: "8px",
-  },
-  subtitle: {
-    color: "#aaa",
-    fontSize: "1rem",
-  },
-  kpiContainer: { marginTop: "20px" },
   kpiCard: {
-    borderRadius: "12px",
-    padding: "20px",
+    borderRadius: "18px",
+    padding: "20px 25px",
+    width: "200px",
     textAlign: "center",
-    color: "#fff",
-    boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
+    boxShadow: "0 10px 25px rgba(0,0,0,0.3)",
+    backdropFilter: "blur(15px)",
+    transition: "all 0.3s ease",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "10px",
   },
-  kpiLabel: { fontSize: "0.85rem", marginBottom: "5px" },
-  kpiValue: { fontSize: "1.7rem", fontWeight: 700 },
-  alertBox: {
-    backgroundColor: "#222",
-    borderRadius: "10px",
-    padding: "10px",
-    maxHeight: "150px",
-    overflowY: "auto",
-    marginTop: "10px",
-    boxShadow: "inset 0 0 10px rgba(255,255,255,0.1)",
+  kpiLabel: { marginTop: "5px", fontSize: "1rem", color: "#f3f4f6" },
+  kpiValue: { fontSize: "1.6rem", fontWeight: 700, marginTop: "5px" },
+
+  gridContainer: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))",
+    gap: "20px",
+    justifyItems: "center",
+    width: "95%",
+    maxWidth: "1800px",
   },
-  alertItem: {
-    color: "#ffcc00",
-    fontSize: "0.95rem",
-    padding: "4px 0",
-  },
-  cardWrapper: {
-    position: "relative",
-    borderRadius: "12px",
+  cameraWrapper: {
+    width: "90%",
+    height: "280px",
+    borderRadius: "20px",
     overflow: "hidden",
-    boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
+    background: "rgba(255,255,255,0.05)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 5px 20px rgba(0,0,0,0.2)",
+    transition: "all 0.3s ease",
     cursor: "pointer",
-    transition: "transform 0.3s, box-shadow 0.3s",
   },
-  focusOverlay: {
+  fullscreenWrapper: {
     position: "fixed",
     top: 0,
     left: 0,
     width: "100vw",
     height: "100vh",
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    backgroundColor: "rgba(0,0,0,0.85)",
     zIndex: 9999,
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    transition: "opacity 0.3s ease",
+    backdropFilter: "blur(8px)",
   },
-  focusCard: {
+  fullscreenContent: {
     position: "relative",
-    background: "#0a0a0a",
+    width: "90vw",
+    height: "90vh",
+    background: "rgba(0,0,0,0.95)",
     borderRadius: "16px",
-    padding: "20px",
-    boxShadow: "0 0 30px rgba(0,0,0,0.8)",
-    maxWidth: "85%",
-    maxHeight: "85%",
+    boxShadow: "0 0 40px rgba(0,0,0,0.9)",
     display: "flex",
-    flexDirection: "column",
+    justifyContent: "center",
     alignItems: "center",
-    animation: "zoomIn 0.3s ease",
   },
-  closeBtn: {
+  fullscreenImg: {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+    borderRadius: "12px",
+  },
+  closeButton: {
     position: "absolute",
     top: "10px",
     right: "15px",
-    fontSize: "1.5rem",
+    fontSize: "2rem",
     background: "none",
     border: "none",
     color: "#fff",
     cursor: "pointer",
+    zIndex: 10,
   },
-  focusTitle: { marginTop: "12px", color: "#00bcd4" },
 };
-
-export default Camaras;

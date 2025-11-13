@@ -34,7 +34,7 @@ const Footer = () => {
                 text-shadow: 0 0 6px #ff9500, 0 0 8px #ffaa33;
               }
               to {
-                text-shadow: 0 0 12px #ff9500, 0 0 20px #ffaa33;
+                text-shadow: 0 0 12px #ff9500, 0 0 20px #ffaa33;x
               }
             }
           `}

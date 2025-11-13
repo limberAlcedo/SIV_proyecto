@@ -1,181 +1,109 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React from "react";
+import { motion } from "framer-motion";
 
-export default function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    // Si ya hay sesión guardada, redirigir automáticamente
-    const user = localStorage.getItem("user");
-    if (user) {
-      navigate("/camaras");
-    }
-  }, [navigate]);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    // Simulación de validación (puedes conectar al backend después)
-    if (email === "admin@test.com" && password === "1234") {
-      alert("Inicio de sesión exitoso ✅");
-
-      // Guardamos sesión
-      localStorage.setItem("user", JSON.stringify({ email }));
-
-      // Redirigimos
-      navigate("/camaras");
-    } else {
-      alert("Credenciales incorrectas ❌");
-    }
-  };
-
-  // Estilos globales (idénticos a los que tenías)
-  useEffect(() => {
-    const style = document.createElement("style");
-    style.innerHTML = `
-      body {
-        margin: 0;
-        padding: 0;
-        background: linear-gradient(120deg, #111827, #1e3a8a, #2563eb);
-        background-size: 300% 300%;
-        animation: gradientMove 8s ease infinite;
-        height: 100vh;
-        overflow: hidden;
-      }
-
-      @keyframes gradientMove {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-      }
-
-      input:focus {
-        box-shadow: 0 0 0 2px #3b82f6 inset !important;
-        background-color: rgba(255, 255, 255, 0.25) !important;
-      }
-
-      button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 0 25px rgba(37,99,235,0.8);
-      }
-
-      button:active {
-        transform: scale(0.98);
-      }
-
-      .login-card:hover {
-        transform: scale(1.03);
-        backdrop-filter: blur(20px);
-      }
-    `;
-    document.head.appendChild(style);
-    return () => document.head.removeChild(style);
-  }, []);
+const CameraCard = ({ title = "CCTV 1.1", status = "offline" }) => {
+  const isOnline = status === "online";
 
   return (
-    <div style={styles.container}>
-      <div className="login-card" style={styles.card}>
-        <h2 style={styles.title}>🚦 Bienvenido</h2>
-        <p style={styles.subtitle}>Sistema de Monitoreo de Tráfico</p>
-
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <input
-            type="email"
-            placeholder="Correo electrónico"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={styles.input}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Contraseña"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={styles.input}
-            required
-          />
-          <button type="submit" style={styles.button}>
-            Ingresar
-          </button>
-        </form>
-
-        <a href="/register" style={styles.link}>
-          ¿No tienes cuenta? <b>Regístrate</b>
-        </a>
+    <motion.div
+      style={styles.card}
+      whileHover={{
+        scale: 1.03,
+        boxShadow: "0 0 35px rgba(37,99,235,0.4)",
+      }}
+      transition={{ type: "spring", stiffness: 200, damping: 15 }}
+    >
+      {/* HEADER */}
+      <div style={styles.header}>
+        <span style={styles.title}>{title}</span>
+        <span
+          style={{
+            ...styles.statusDot,
+            backgroundColor: isOnline ? "#22c55e" : "#ef4444",
+          }}
+        ></span>
       </div>
-    </div>
-  );
-}
 
+      {/* BODY */}
+      <div style={styles.body}>
+        {isOnline ? (
+          <span style={styles.onlineText}>ONLINE ✅</span>
+        ) : (
+          <span style={styles.offlineText}>OFFLINE ❌</span>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
+export default CameraCard;
+
+// 🎨 ESTILOS
 const styles = {
-  container: {
-    height: "100vh",
+  card: {
+    background: "linear-gradient(180deg, #0f172a, #1e3a8a 40%, #1e40af 100%)",
+    borderRadius: "18px",
+    overflow: "hidden",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.45)",
+    width: "100%",
+    maxWidth: "380px", // 🔹 tamaño más grande
+    height: "260px", // 🔹 altura mayor
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    transition: "transform 0.3s ease, box-shadow 0.3s ease",
+    border: "1px solid rgba(255,255,255,0.08)",
+  },
+  header: {
+    background: "linear-gradient(90deg, #0284c7, #2563eb, #1e40af)",
+    padding: "10px 16px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopLeftRadius: "18px",
+    borderTopRightRadius: "18px",
+    color: "#f8fafc",
+  },
+  title: {
+    fontSize: "1rem",
+    fontWeight: 600,
+    letterSpacing: "0.3px",
+  },
+  statusDot: {
+    width: "12px",
+    height: "12px",
+    borderRadius: "50%",
+    boxShadow: "0 0 8px rgba(255,255,255,0.5)",
+  },
+  body: {
+    flex: 1,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backdropFilter: "blur(10px)",
-    fontFamily: "'Poppins', sans-serif",
+    color: "#f1f5f9",
+    fontWeight: "700",
+    fontSize: "1.15rem",
   },
-  card: {
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    padding: "45px 40px",
-    borderRadius: "18px",
-    backdropFilter: "blur(15px)",
-    boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
-    color: "#fff",
-    width: "100%",
-    maxWidth: "380px",
-    textAlign: "center",
-    transition: "transform 0.4s ease, backdrop-filter 0.4s ease",
+  offlineText: {
+    color: "#ef4444",
+    letterSpacing: "0.5px",
+    textShadow: "0 0 10px rgba(239,68,68,0.5)",
   },
-  title: {
-    marginBottom: "10px",
-    fontWeight: 700,
-    fontSize: "1.9rem",
-    textShadow: "0 2px 10px rgba(254, 249, 249, 0.4)",
-  },
-  subtitle: {
-    fontSize: "1rem",
-    color: "#d1d5db",
-    marginBottom: "25px",
-  },
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "15px",
-  },
-  input: {
-    padding: "12px",
-    borderRadius: "10px",
-    border: "none",
-    outline: "none",
-    fontSize: "0.95rem",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    color: "#fff",
-    boxShadow: "0 0 0 1px rgba(255,255,255,0.2) inset",
-    transition: "all 0.3s ease",
-  },
-  button: {
-    marginTop: "10px",
-    padding: "12px",
-    borderRadius: "10px",
-    border: "none",
-    fontSize: "1rem",
-    fontWeight: "bold",
-    background: "linear-gradient(90deg, #3b82f6, #2563eb)",
-    color: "#fff",
-    cursor: "pointer",
-    boxShadow: "0 4px 15px rgba(37,99,235,0.5)",
-    transition: "all 0.3s ease",
-  },
-  link: {
-    marginTop: "18px",
-    display: "block",
-    color: "#cbd5e1",
-    fontSize: "0.9rem",
-    textDecoration: "none",
+  onlineText: {
+    color: "#22c55e",
+    letterSpacing: "0.5px",
+    textShadow: "0 0 10px rgba(34,197,94,0.5)",
   },
 };
+
+// 📱 Responsividad
+const responsiveStyles = document.createElement("style");
+responsiveStyles.innerHTML = `
+@media (max-width: 768px) {
+  .camera-card {
+    max-width: 90% !important;
+    height: 220px !important;
+  }
+}
+`;
+document.head.appendChild(responsiveStyles);
