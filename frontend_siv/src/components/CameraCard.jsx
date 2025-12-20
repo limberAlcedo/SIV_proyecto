@@ -1,200 +1,245 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 
-const VEHICLE_MEDIUM = 5;
-const VEHICLE_HIGH = 10;
 const BACKEND_URL = "http://127.0.0.1:8000";
 
-const CameraCard = ({ camId, title }) => {
-  const [vehicles, setVehicles] = useState(0);
-  const [online, setOnline] = useState(true);
-  const [detenidos, setDetenidos] = useState(0);
+const ALERT_COLORS = {
+  asistencia: "#16a34a",
+  vehiculo: "#dc2626",
+  accidente: "#8b5cf6",
+  conos: "#facc15",
+};
 
-  const updateData = async () => {
+const NORMAL_BORDER = "#555";
+
+const CameraCard = ({ camId, title }) => {
+  const [data, setData] = useState({
+    nivel: "Baja",
+    nivel_color: "#16a34a",
+    vehiculos: 0,
+    detenidos: 0,
+    alertType: null,
+    asistencia: null,
+    conos_detectados: false,
+  });
+
+  const [online, setOnline] = useState(true);
+  const videoRef = useRef(null);
+
+  const fetchData = async () => {
     try {
-      const [statusRes, congestionRes, detenidosRes] = await Promise.all([
-        fetch(`${BACKEND_URL}/camera/${camId}/status`).then((r) => r.json()),
-        fetch(`${BACKEND_URL}/camera/${camId}/congestion`).then((r) => r.json()),
-        fetch(`${BACKEND_URL}/camera/${camId}/detenidos`).then((r) => r.json()),
-      ]);
-      setOnline(statusRes.status === "online");
-      if (statusRes.status === "online") {
-        setVehicles(congestionRes.vehiculos || 0);
-        setDetenidos(detenidosRes.detenidos || 0);
-      }
-    } catch {
+      const res = await fetch(`${BACKEND_URL}/api/camera/${camId}/status_full`);
+      const json = await res.json();
+
+      setOnline(json.status === "online");
+
+      let alertType = null;
+      if (json.asistencia_detectada) alertType = "asistencia";
+      else if (json.conos_detectados) alertType = "conos";
+      else if (json.alerta_vehiculo) alertType = "vehiculo";
+      else if (json.accidente_detectado) alertType = "accidente";
+
+      setData({
+        nivel: json.nivel,
+        nivel_color: json.nivel_color || "#16a34a",
+        vehiculos: json.vehiculos,
+        detenidos: json.detenidos,
+        asistencia: json.asistencia_nombre || null,
+        alertType,
+        conos_detectados: json.conos_detectados || false,
+      });
+    } catch (err) {
+      console.error(err);
       setOnline(false);
     }
   };
 
   useEffect(() => {
-    updateData();
-    const interval = setInterval(updateData, 4000);
+    fetchData();
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [camId]);
 
-  // Nivel de congestión
-  let nivel = "Baja";
-  let color = "#16a34a";
-  if (vehicles > VEHICLE_HIGH) {
-    nivel = "Alta";
-    color = "#dc2626";
-  } else if (vehicles > VEHICLE_MEDIUM) {
-    nivel = "Media";
-    color = "#facc15";
-  }
+  const borderColor = data.alertType ? ALERT_COLORS[data.alertType] : NORMAL_BORDER;
+
+  const borderStyle = {
+    border: online ? `4px solid ${borderColor}` : `2px solid ${NORMAL_BORDER}`,
+    borderRadius: "20px",
+    boxShadow: data.alertType
+      ? `0 8px 20px ${borderColor}55`
+      : "0 6px 18px rgba(0,0,0,0.2)",
+    transition: "all 0.3s ease",
+    animation:
+      data.alertType && data.alertType !== "asistencia"
+        ? "borderPulse 1.5s infinite alternate"
+        : "none",
+  };
 
   return (
-    <div style={{ ...styles.card, opacity: online ? 1 : 0.7 }}>
-      {/* Header */}
-      <div style={styles.header}>
-        <h5 style={styles.title}>{title}</h5>
-      </div>
-
-      {/* Badges */}
-      {online && (
-        <div style={styles.badgeContainer}>
-          <div style={styles.liveBadge}>EN VIVO 🔴</div>
-          <div style={{ ...styles.badge, backgroundColor: color, marginLeft: "auto" }}>
-            🚗 {nivel}
-          </div>
-        </div>
-      )}
-
-      {/* Video o placeholder */}
-      <div style={styles.streamContainer}>
+    <div className={`camera-card ${online ? "" : "offline-card"}`} style={borderStyle}>
+      <div className="stream-container">
         {online ? (
-          <img
-            src={`${BACKEND_URL}/camera/${camId}/stream`}
-            alt={title}
-            style={styles.stream}
-          />
+          <>
+            <img
+              ref={videoRef}
+              src={`${BACKEND_URL}/api/cam/${camId}/stream`}
+              autoPlay
+              muted
+              playsInline
+              className="stream"
+            />
+
+            {/* Título sobre el video */}
+            <div className="camera-title">{data.asistencia ? data.asistencia : title}</div>
+
+            {/* Badges */}
+            <div className="live-badge">EN VIVO 🔴</div>
+            <div className="level-badge" style={{ background: data.nivel_color }}>
+              🚦 {data.nivel}
+            </div>
+
+            {data.alertType === "vehiculo" && data.detenidos > 0 && (
+              <div className="alert-badge vehiculo-alert">
+                🚨 {data.detenidos} Vehiculo{data.detenidos > 1 ? "s" : ""} detenido
+                {data.detenidos > 1 ? "s" : ""}
+              </div>
+            )}
+          </>
         ) : (
-          <div style={styles.offline}>OFFLINE ❌</div>
+          <div className="offline">OFFLINE ❌</div>
         )}
       </div>
 
-      {/* Alerta de vehículos detenidos */}
-      {online && detenidos > 0 && (
-        <div style={styles.alertBadge}>
-          🚨 {detenidos} vehículo{detenidos > 1 ? "s" : ""} detenido
-        </div>
-      )}
+      <style>{`
+        .camera-card {
+          position: relative;
+          width: 100%;
+          max-width: 420px;
+          aspect-ratio: 16 / 9;
+          background: linear-gradient(145deg, #031230, #0042b0 90%);
+          border-radius: 20px;
+          overflow: hidden;
+          transition: all 0.3s ease;
+        }
+
+        .offline-card {
+          opacity: 0.6;
+        }
+
+        .stream-container {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          background: #000;
+          overflow: hidden;
+        }
+
+        .stream {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          border-radius: 20px;
+        }
+
+        .offline {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          width: 100%;
+          height: 100%;
+          color: #fff;
+          font-weight: 700;
+          background: #111827;
+        }
+
+        .camera-title {
+          position: absolute;
+          top: 10px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(0,0,0,0.5);
+          color: #fff;
+          padding: 0.3em 0.8em;
+          border-radius: 12px;
+          font-weight: 700;
+          font-size: 1rem;
+          text-align: center;
+          z-index: 10;
+        }
+
+        .live-badge {
+          position: absolute;
+          top: 10px;
+          left: 10px;
+          padding: 0.3em 0.8em;
+          font-size: 0.8rem;
+          font-weight: 700;
+          color: #fff;
+          background-color: #dc2626;
+          border-radius: 12px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+
+        .level-badge {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          padding: 0.3em 0.8em;
+          font-size: 0.8rem;
+          font-weight: 700;
+          color: #fff;
+          border-radius: 12px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+          text-shadow: 0 0 4px rgba(0,0,0,0.3);
+          animation: pulse 2s infinite alternate;
+          transition: all 0.3s ease;
+        }
+
+        .alert-badge {
+          position: absolute;
+          bottom: 10px;
+          left: 50%;
+          transform: translateX(-50%);
+          padding: 0.5em 1em;
+          font-size: 0.85rem;
+          font-weight: 800;
+          color: #fff;
+          border-radius: 16px;
+          background: linear-gradient(135deg, #dc2626, #f87171, #ef4444);
+          text-shadow: 0 0 3px rgba(255,255,255,0.8);
+          box-shadow: 0 0 8px #dc2626aa, 0 0 14px #ef4444aa, 0 0 20px #f87171aa;
+          animation: glowPulse 1.2s infinite alternate;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+
+        @keyframes pulse {
+          0% { transform: translateY(0px) scale(1); opacity: 0.85; }
+          50% { transform: translateY(-2px) scale(1.05); opacity: 1; }
+          100% { transform: translateY(0px) scale(1); opacity: 0.85; }
+        }
+
+        @keyframes glowPulse {
+          0% { transform: translateX(-50%) scale(1); }
+          50% { transform: translateX(-50%) scale(1.05); }
+          100% { transform: translateX(-50%) scale(1); }
+        }
+
+        @keyframes borderPulse {
+          0% { box-shadow: 0 8px 20px ${borderColor}55; }
+          50% { box-shadow: 0 8px 28px ${borderColor}88; }
+          100% { box-shadow: 0 8px 20px ${borderColor}55; }
+        }
+
+        @media (max-width: 480px) {
+          .camera-title, .live-badge, .level-badge, .alert-badge {
+            font-size: 0.7rem;
+            padding: 0.25em 0.6em;
+          }
+        }
+      `}</style>
     </div>
   );
 };
-
-const styles = {
-  card: {
-    position: "relative",
-    borderRadius: "20px",
-    background: "linear-gradient(145deg, rgba(4,15,40,0.95), rgba(0,188,212,0.25))",
-    overflow: "hidden",
-    backdropFilter: "blur(8px)",
-    transition: "all 0.3s ease",
-    cursor: "pointer",
-    width: "100%",
-    height: "280px",
-    minWidth: "340px",
-    maxWidth: "400px",
-    boxShadow: "0 6px 18px rgba(0,0,0,0.2)",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "center",
-    background: "linear-gradient(90deg, #0284c7, #1e3a8a)",
-    color: "#fff",
-    padding: "10px 12px",
-    fontWeight: 700,
-    borderTopLeftRadius: "20px",
-    borderTopRightRadius: "20px",
-    textShadow: "0 0 5px rgba(0,0,0,0.4)",
-  },
-  title: {
-    margin: 0,
-    fontSize: "1.1rem",
-    letterSpacing: "0.5px",
-  },
-  badgeContainer: {
-    position: "absolute",
-    top: "6px", 
-    left: "12px",
-    right: "12px",
-    display: "flex",
-    alignItems: "center",
-  },
-  liveBadge: {
-    padding: "4px 10px", 
-    borderRadius: "12px",
-    fontSize: "0.75rem",
-    fontWeight: 600,
-    color: "#fff",
-    backgroundColor: "#e53935",
-    boxShadow: "0 0 8px #e53935, 0 0 14px #e53935aa",
-    animation: "pulse 1.4s infinite",
-  },
-  badge: {
-    padding: "4px 10px", 
-    borderRadius: "12px",
-    fontSize: "0.75rem",
-    fontWeight: 700,
-    color: "#fff",
-    boxShadow: "0 0 8px rgba(0,0,0,0.4)",
-  },
-  streamContainer: {
-    width: "100%",
-    height: "calc(100% - 45px)",
-    backgroundColor: "#000",
-  },
-  stream: {
-    width: "100%",
-    height: "100%",
-    objectFit: "cover",
-    borderRadius: "0 0 20px 20px",
-  },
-  offline: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    height: "100%",
-    color: "#fff",
-    fontWeight: 600,
-    fontSize: "1rem",
-    background: "linear-gradient(180deg, #1f2937, #111827)",
-  },
-  alertBadge: {
-    position: "absolute",
-    bottom: "14px",
-    left: "50%",
-    transform: "translateX(-50%)",
-    backgroundColor: "rgba(220, 38, 38, 0.9)",
-    color: "#fff",
-    padding: "8px 16px",
-    borderRadius: "14px",
-    fontWeight: 700,
-    fontSize: "0.9rem",
-    animation: "blink 1.2s infinite",
-    boxShadow: "0 0 18px rgba(255, 0, 0, 0.8)",
-  },
-};
-
-// Animaciones CSS
-if (typeof document !== "undefined") {
-  const style = document.createElement("style");
-  style.innerHTML = `
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.7; transform: scale(1.06); }
-    }
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-    .camera-card:hover {
-      transform: scale(1.02);
-      box-shadow: 0 12px 25px rgba(0,191,255,0.35);
-    }
-  `;
-  document.head.appendChild(style);
-}
 
 export default CameraCard;

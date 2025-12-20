@@ -1,0 +1,81 @@
+.nav-links-container {
+  display: flex;
+  gap: 25px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.nav-links-container.fade-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Estilo base de los links */
+.nav-link-ultra {
+  position: relative;
+  font-weight: 600;
+  color: #f8f9fa;
+  text-decoration: none;
+  padding: 5px 0;
+  transition: color 0.3s ease, transform 0.2s ease, text-shadow 0.3s ease;
+}
+
+/* Hover: scale + glow */
+.nav-link-ultra:hover {
+  transform: scale(1.08);
+  color: #3b82f6;
+  text-shadow: 0 0 8px rgba(59,130,246,0.7);
+}
+
+/* Underline animado con gradiente que se mueve */
+.nav-link-ultra::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 3px;
+  left: 0;
+  bottom: -3px;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa, #3b82f6);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  background-size: 200% 100%;
+}
+
+.nav-link-ultra:hover::after {
+  width: 100%;
+  animation: underlineMove 2s linear infinite;
+}
+
+/* Animación del underline */
+@keyframes underlineMove {
+  0% { background-position: 0% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Link activo: gradiente y glow pulsante */
+.nav-link-active {
+  background: linear-gradient(90deg, #ffc107, #fcd34d, #ffc107);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+  text-shadow: 0 0 12px rgba(255,193,7,0.8);
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+/* Animación de glow pulsante */
+@keyframes glowPulse {
+  0%, 100% { text-shadow: 0 0 8px rgba(255,193,7,0.6); }
+  50% { text-shadow: 0 0 18px rgba(255,193,7,1); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .nav-links-container {
+    flex-direction: column;
+    gap: 15px;
+  }
+}

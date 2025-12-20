@@ -1,13 +1,18 @@
-# Entorno virtual
+# ==============================
+# Backend Python / FastAPI / YOLO
+# ==============================
+
+# Entornos virtuales
 .venv/
 venv/
 env/
 
+# macOS
+.DS_Store
+
 # Python cache
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
 
 # Variables de entorno
 .env
@@ -16,19 +21,20 @@ __pycache__/
 # Logs y temporales
 *.log
 *.tmp
+logs/
+
+# Base de datos
+*.sqlite3
+*.db
+*.dump
+
+# Archivos generados / YOLO / videos
+*.pt
+*.mp4
+backend_siv/videos/*
+!backend_siv/videos/.gitkeep
 
 # IDEs
 .vscode/
 .idea/
-
-# macOS
-.DS_Store
-# Ignorar todos los videos
-backend_siv/videos/*
-
-# Pero no ignorar .gitkeep
-!backend_siv/videos/.gitkeep
-# Node.js
-node_modules/
-**/logs/
-**/tmp/
+backend_siv/videos/*.avi

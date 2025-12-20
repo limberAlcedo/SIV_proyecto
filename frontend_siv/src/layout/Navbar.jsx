@@ -1,132 +1,175 @@
-// src/layout/Navbar.jsx
-import React from "react";
-import { Navbar, Container, Nav, Button, Dropdown } from "react-bootstrap";
-import { NavLink, useNavigate } from "react-router-dom";
-import "bootstrap/dist/css/bootstrap.min.css";
-
-const navLinks = [
-  { path: "/camaras", label: "Cámaras" },
-  { path: "/reportes", label: "Reportes" },
-  { path: "/configuracion", label: "Configuración" },
-];
+import React, { useEffect, useState } from "react";
+import { Navbar, Container, Nav, Button, Dropdown, Modal, Badge } from "react-bootstrap";
+import { useNavigate } from "react-router-dom";
+import { User, Camera, FileText, Settings, Users, AlertTriangle, BarChart, Shield, Key } from "lucide-react";
+import NavLinks from "./NavLinks";
+import "../styles/AppNavbar.css";
 
 const AppNavbar = () => {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user"));
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 50);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
     navigate("/");
   };
 
+  if (!user) return null;
+
   return (
-    <Navbar
-      expand="lg"
-      bg="dark"
-      variant="dark"
-      sticky="top"
-      className="shadow-sm border-bottom border-warning-subtle"
-      style={{
-        backdropFilter: "blur(8px)",
-        background: "rgba(0, 0, 0, 0.9)",
-      }}
-    >
-      <Container fluid>
-        {/* ---------- Brand ---------- */}
-        <Navbar.Brand
-          onClick={() => navigate("/camaras")}
-          role="button"
-          aria-label="Ir al dashboard"
-          className="fw-bold text-uppercase d-flex align-items-center gap-2 text-warning"
-          style={{
-            cursor: "pointer",
-            fontSize: "1.25rem",
-            transition: "all 0.3s ease",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#ffd166")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#ffbb33")}
-        >
-          🚦 <span>SIV Dashboard</span>
-        </Navbar.Brand>
+    <>
+      <Navbar
+        expand="lg"
+        variant="dark"
+        sticky="top"
+        className={`navbar-custom shadow-sm ${isScrolled ? "scrolled" : ""}`}
+      >
+        <Container fluid className="px-4">
+          <Navbar.Brand
+            onClick={() => navigate("/camaras")}
+            role="button"
+            className="d-flex align-items-center gap-2 fw-bold fs-5 text-white"
+          >
+            🚦 SIV Dashboard
+          </Navbar.Brand>
 
-        <Navbar.Toggle aria-controls="main-navbar" />
+          <Navbar.Toggle aria-controls="main-navbar" />
 
-        {/* ---------- Menu ---------- */}
-        <Navbar.Collapse id="main-navbar">
-          <Nav className="ms-auto align-items-center gap-3">
-            {user &&
-              navLinks.map(({ path, label }) => (
-                <NavLink
-                  key={path}
-                  to={path}
-                  className={({ isActive }) =>
-                    `fw-semibold nav-link ${
-                      isActive ? "text-warning" : "text-light"
-                    }`
-                  }
-                  style={{ transition: "color 0.3s ease, transform 0.2s ease" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                >
-                  {label}
-                </NavLink>
-              ))}
+          <Navbar.Collapse id="main-navbar">
+            <Nav className="ms-auto align-items-center gap-3">
+              {/* Links dinámicos */}
+              <NavLinks user={user} />
 
-            {/* ---------- Login / Usuario ---------- */}
-            {!user ? (
-              <Button
-                variant="warning"
-                className="fw-semibold rounded-pill px-4 shadow-sm"
-                style={{
-                  background: "linear-gradient(90deg, #ff9500, #ffaa33)",
-                  border: "none",
-                  boxShadow: "0 0 8px #ff9500, 0 0 14px #ffaa33",
-                  transition: "all 0.3s ease",
-                  color: "#000",
-                }}
-                onClick={() => navigate("/")}
-              >
-                Iniciar sesión
-              </Button>
-            ) : (
+              {/* User Dropdown */}
               <Dropdown align="end">
-                <Dropdown.Toggle
-                  id="dropdown-user"
-                  variant="outline-warning"
-                  className="rounded-pill d-flex align-items-center px-3 py-1 text-warning border-warning"
-                  style={{
-                    background: "transparent",
-                    fontWeight: "500",
-                    fontSize: "0.95rem",
-                  }}
-                >
-                  👤 <span className="ms-2">{user.email || "Usuario"}</span>
+                <Dropdown.Toggle className="dropdown-toggle-custom rounded-pill d-flex align-items-center px-3 py-1 fw-medium">
+                  <User size={18} /> <span className="ms-2">{user.name || user.username}</span>
+                  <Badge
+                    bg={
+                      user.role_name === "admin"
+                        ? "danger"
+                        : user.role_name === "supervisor"
+                        ? "warning"
+                        : "info"
+                    }
+                    className="ms-2 text-uppercase"
+                    style={{ fontSize: "0.7rem" }}
+                  >
+                    {user.role_name}
+                  </Badge>
                 </Dropdown.Toggle>
 
-                <Dropdown.Menu
-                  className="shadow border-0 rounded-3 mt-2"
-                  style={{ fontSize: "0.95rem", minWidth: "180px" }}
-                >
+                <Dropdown.Menu className="shadow border-0 mt-2 py-2" style={{ minWidth: 220 }}>
+                  {/* Opciones comunes */}
                   <Dropdown.Item onClick={() => alert("Perfil próximamente")}>
-                    Mi perfil
+                    <User size={16} className="me-2" /> Mi perfil
                   </Dropdown.Item>
-                  <Dropdown.Item onClick={() => alert("Configuración próximamente")}>
-                    Configuración
+                  <Dropdown.Item onClick={() => navigate("/configuracion")}>
+                    <Settings size={16} className="me-2" /> Configuración
                   </Dropdown.Item>
+
+                  <Dropdown.Divider />
+
+                  {/* Opciones por rol */}
+                  {user.role_name === "operador" && (
+                    <>
+                      <Dropdown.Item onClick={() => navigate("/camaras")}>
+                        <Camera size={16} className="me-2" /> Ver cámaras
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => navigate("/incidentes")}>
+                        <AlertTriangle size={16} className="me-2" /> Incidentes
+                      </Dropdown.Item>
+                    </>
+                  )}
+
+                  {user.role_name === "supervisor" && (
+                    <>
+                      <Dropdown.Item onClick={() => navigate("/grabaciones")}>
+                        <FileText size={16} className="me-2" /> Consultar grabaciones
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => navigate("/incidentes")}>
+                        <AlertTriangle size={16} className="me-2" /> Incidentes
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => navigate("/usuarios")}>
+                        <Users size={16} className="me-2" /> Usuarios
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => navigate("/reportes")}>
+                        <BarChart size={16} className="me-2" /> Reportes
+                      </Dropdown.Item>
+                    </>
+                  )}
+
+                  {user.role_name === "admin" && (
+                    <>
+                      <Dropdown.Item onClick={() => navigate("/camaras")}>
+                        <Camera size={16} className="me-2" /> Administrar cámaras
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => navigate("/incidentes")}>
+                        <AlertTriangle size={16} className="me-2" /> Incidentes
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => navigate("/usuarios")}>
+                        <Users size={16} className="me-2" /> Usuarios
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => navigate("/configuracion")}>
+                        <Settings size={16} className="me-2" /> Configuración completa
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => navigate("/reportes")}>
+                        <BarChart size={16} className="me-2" /> Reportes
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => alert("Seguridad y roles")}>
+                        <Shield size={16} className="me-2" /> Permisos y roles
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => alert("Gestión de claves")}>
+                        <Key size={16} className="me-2" /> Claves y auditoría
+                      </Dropdown.Item>
+                    </>
+                  )}
+
                   <Dropdown.Divider />
                   <Dropdown.Item
-                    onClick={handleLogout}
+                    onClick={() => setShowLogoutModal(true)}
                     className="text-danger fw-semibold"
                   >
                     Cerrar sesión
                   </Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
-            )}
-          </Nav>
-        </Navbar.Collapse>
-      </Container>
-    </Navbar>
+            </Nav>
+          </Navbar.Collapse>
+        </Container>
+      </Navbar>
+
+      {/* Modal de logout */}
+      <Modal show={showLogoutModal} onHide={() => setShowLogoutModal(false)} centered size="sm">
+        <Modal.Header closeButton>
+          <Modal.Title>Cerrar sesión</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>¿Estás seguro de que quieres cerrar sesión?</Modal.Body>
+        <Modal.Footer className="d-flex justify-content-between">
+          <Button variant="secondary" onClick={() => setShowLogoutModal(false)}>
+            Cancelar
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setShowLogoutModal(false);
+              handleLogout();
+            }}
+          >
+            Cerrar sesión
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </>
   );
 };
 

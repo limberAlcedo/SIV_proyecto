@@ -1,6 +1,0 @@
-train: app/data/images/train
-val: app/data/images/val
-nc: 3 # Reemplaza con el número de clases
-names: ["clase1", "clase2", "clase3"] # Reemplaza con los nombres de tus clases
-
-# # backend_siv/app/data.yaml

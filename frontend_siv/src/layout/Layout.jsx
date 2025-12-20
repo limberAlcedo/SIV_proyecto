@@ -1,24 +1,18 @@
-// src/layout/Layout.jsx
 import React from "react";
 import AppNavbar from "./Navbar";
 import Footer from "./Footer";
+import "../styles/Layout.css"; // importamos estilos separados
 
 const Layout = ({ children }) => {
   return (
-    <div
-      className="d-flex flex-column min-vh-100"
-      style={{
-        background:
-          "linear-gradient(135deg, rgba(28,100,242,1) 0%, rgba(30,64,175,1) 50%, rgba(59,130,246,1) 100%)",
-        backgroundAttachment: "fixed",
-        color: "#f9fafb",
-      }}
-    >
+    <div className="layout-container">
       <AppNavbar />
-      <main className="flex-grow-1">{children}</main>
+      <main className="layout-main">{children}</main>
       <Footer />
     </div>
   );
 };
 
 export default Layout;
+
+///Users/limberalcedo/Desktop/Proyecto/SIV_proyecto/frontend_siv/src/layout/Layout.jsx

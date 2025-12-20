@@ -1,314 +1,37 @@
+/* src/styles/App.css */
+
 /* -----------------------------
    BODY & GENERAL
 ----------------------------- */
 body, html {
   margin: 0;
   padding: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #e0f7e9, #fff4e6);
-  color: #333;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  font-family: 'Poppins', sans-serif;
+  min-height: 100%;
+  background: linear-gradient(135deg, rgba(28,100,242,1) 0%, rgba(30,64,175,1) 50%, rgba(59,130,246,1) 100%);
+  background-attachment: fixed;
+  color: #f9fafb;
   scroll-behavior: smooth;
 }
 
-/* -----------------------------
-   APP CONTAINER
------------------------------ */
+/* Contenedor principal para layout */
 .app-container {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  width: 100%;
-  transition: filter 0.5s ease;
 }
 
-/* Desenfoque cuando no hay sesión */
-.blurred {
-  filter: blur(10px);
-  pointer-events: none;
-  user-select: none;
+/* Animaciones globales */
+@keyframes glow {
+  from { text-shadow: 0 0 6px #3b82f6, 0 0 10px #2563eb; }
+  to   { text-shadow: 0 0 12px #3b82f6, 0 0 20px #2563eb; }
 }
 
-/* Contenido principal */
-.content {
-  flex: 1;
-  padding: 2rem;
-}
-
-/* -----------------------------
-   NAVBAR
------------------------------ */
-.navbar {
-  background-color: #28a745;
-  color: white;
-  padding: 1rem 2rem;
-  font-size: 1.2rem;
-  font-weight: bold;
-  border-bottom-left-radius: 15px;
-  border-bottom-right-radius: 15px;
-  box-shadow: 0 6px 15px rgba(0,0,0,0.1);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-.navbar:hover {
-  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-}
-
-.navbar-brand {
-  color: #fff;
-  font-weight: 700;
-  font-size: 1.6rem;
-  text-decoration: none;
-  letter-spacing: 1px;
-}
-
-.nav-links {
-  list-style: none;
-  display: flex;
-  gap: 1.2rem;
-  margin: 0;
-  padding: 0;
-}
-
-.nav-link {
-  color: white;
-  text-decoration: none;
-  font-weight: 500;
-  position: relative;
-  transition: color 0.3s ease;
-}
-
-.nav-link::after {
-  content: '';
-  position: absolute;
-  width: 0%;
-  height: 2px;
-  bottom: -4px;
-  left: 0;
-  background-color: #ff6600;
-  transition: width 0.3s ease;
-}
-
-.nav-link:hover {
-  color: #ff6600;
-}
-
-.nav-link:hover::after {
-  width: 100%;
-}
-
-.nav-link.active {
-  color: #ffc107;
-}
-
-.logout {
-  color: #dc3545;
-  font-weight: 600;
-}
-
-.logout:hover {
-  color: #ff4b5c;
-}
-
-/* -----------------------------
-   AUTH FORM (LOGIN & REGISTER)
------------------------------ */
-.auth-form {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: #ffffffee;
-  border-radius: 25px;
-  padding: 40px 30px;
-  width: 90%;
-  max-width: 420px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
-  text-align: center;
-  z-index: 1000;
-  animation: fadeIn 0.5s ease;
-}
-
-.auth-form h2 {
-  margin-bottom: 30px;
-  color: #28a745;
-  font-weight: 800;
-  letter-spacing: 1px;
-}
-
-.auth-form input {
-  width: 100%;
-  margin-bottom: 20px;
-  padding: 14px 18px;
-  border-radius: 15px;
-  border: 1px solid #ccc;
-  font-size: 1rem;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-.auth-form input:focus {
-  border-color: #ff6600;
-  box-shadow: 0 0 10px rgba(255, 102, 0, 0.4);
-  outline: none;
-}
-
-/* Botones */
-.auth-form button,
-.btn-success,
-.btn-warning {
-  width: 100%;
-  padding: 14px;
-  border-radius: 15px;
-  border: none;
-  font-weight: 600;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin-bottom: 10px;
-  letter-spacing: 0.5px;
-}
-
-.btn-success {
-  background-color: #28a745;
-  color: white;
-}
-
-.btn-success:hover {
-  background-color: #1e7e34;
-  transform: translateY(-2px) scale(1.02);
-}
-
-.btn-warning {
-  background-color: #ff6600;
-  color: white;
-}
-
-.btn-warning:hover {
-  background-color: #e65c00;
-  transform: translateY(-2px) scale(1.02);
-}
-
-.auth-form .form-link {
-  display: block;
-  text-align: center;
-  margin-top: 12px;
-  color: #28a745;
-  font-weight: 500;
-  transition: color 0.3s ease;
-}
-
-.auth-form .form-link:hover {
-  color: #ff6600;
-  text-decoration: underline;
-}
-
-/* -----------------------------
-   OVERLAY DEL LOGIN
------------------------------ */
-.overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: brightness(0.9);
-  z-index: 900;
-}
-
-/* -----------------------------
-   DASHBOARD CARDS
------------------------------ */
-.dashboard {
-  max-width: 1100px;
-  margin: 20px auto;
-  padding: 20px;
-}
-
-.dashboard .cards-container {
-  display: flex;
-  gap: 25px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.dashboard .card {
-  flex: 1 1 250px;
-  min-width: 250px;
-  background: #ffffffdd;
-  border-radius: 25px;
-  padding: 25px;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.08);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.dashboard .card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 18px 40px rgba(0,0,0,0.12);
-}
-
-.dashboard .card h3 {
-  margin-top: 0;
-  color: #28a745;
-  font-weight: 700;
-  margin-bottom: 15px;
-}
-
-.dashboard .card p {
-  color: #555;
-  line-height: 1.5;
-}
-
-/* -----------------------------
-   FOOTER
------------------------------ */
-.footer {
-  background-color: #28a745;
-  border-radius: 20px 20px 0 0;
-  color: white;
-  text-align: center;
-  padding: 15px 0;
-  font-size: 0.9rem;
-  box-shadow: 0 -3px 15px rgba(0,0,0,0.1);
-}
-
-/* -----------------------------
-   ANIMACIONES
------------------------------ */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-15px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* -----------------------------
-   RESPONSIVE
------------------------------ */
+/* Responsivo global */
 @media (max-width: 768px) {
-  .dashboard .cards-container {
-    flex-direction: column;
-  }
-
-  .auth-form {
-    padding: 30px 20px;
-  }
-
-  .navbar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
+  body { font-size: 0.95rem; }
 }
 
+@media (max-width: 480px) {
+  body { font-size: 0.9rem; }
+}
