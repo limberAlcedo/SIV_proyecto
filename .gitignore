@@ -38,3 +38,10 @@ backend_siv/videos/*
 .vscode/
 .idea/
 backend_siv/videos/*.avi
+
+
+# Ignorar todos los videos AVI
+backend_siv/grabaciones/*.avi
+
+# O ignorar toda la carpeta de grabaciones
+backend_siv/grabaciones/
