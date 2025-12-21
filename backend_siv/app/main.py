@@ -42,17 +42,6 @@ app.include_router(video_router, prefix="/api/videos", tags=["Videos"])
 app.include_router(incidentes_router, prefix="/api/incidentes", tags=["Incidentes"])
 app.include_router(camera_router, prefix="/api/cameras", tags=["Cámaras"])
 app.include_router(status_router, prefix="/api/cameras/status", tags=["Status Cámaras"])
-# main.py
-app.include_router(camera_router, prefix="/api/cameras")
-app.include_router(status_router, prefix="/api/cameras")
-app.include_router(status_router, prefix="/api")
-
-
-
-from app.api.routes.camara import camera_router, status_router
-
-app.include_router(camera_router, prefix="/api")
-app.include_router(status_router, prefix="/api")
 
 # =========================
 # Carpeta de videos estáticos
