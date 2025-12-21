@@ -45,3 +45,6 @@ backend_siv/grabaciones/*.avi
 
 # O ignorar toda la carpeta de grabaciones
 backend_siv/grabaciones/
+
+backend_siv/grabaciones/cam3-5.avi
+backend_siv/grabaciones/*.avi
