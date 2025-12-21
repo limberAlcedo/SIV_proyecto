@@ -1,116 +1,173 @@
-import React, { useEffect, useState } from "react";
+// src/pages/ConfiguracionAvanzada.jsx
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "react-bootstrap";
+import { Button, Form } from "react-bootstrap";
+import "bootstrap/dist/css/bootstrap.min.css";
 
-const rolesMock = [
-  { id: 1, name: "Admin", color: "#EF4444" },
-  { id: 2, name: "Supervisor", color: "#FBBF24" },
-  { id: 3, name: "Operador", color: "#3B82F6" },
-];
+// ---------------------------
+// Componente RoleCard
+// ---------------------------
+const RoleCard = ({ role, pages, permissions, togglePermission, settings, updateSetting }) => {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      style={{ ...styles.roleCard, borderTopColor: role.color }}
+    >
+      <h3 style={{ ...styles.roleTitle, color: role.color }}>{role.name}</h3>
 
-const pagesMock = [
-  "Incidentes",
-  "Usuarios",
-  "Cámaras",
-  "Configuración",
-  "Reportes",
-  "Estadísticas",
-];
+      {/* Permisos a páginas */}
+      <div style={styles.pagesContainer}>
+        {pages.map((page) => {
+          const active = permissions[role.id]?.[page];
+          return (
+            <motion.div
+              key={page}
+              whileHover={{ scale: 1.05 }}
+              style={{
+                ...styles.pageItem,
+                background: active ? role.color : "rgba(255,255,255,0.05)",
+                color: active ? "#fff" : "#e0e7ff",
+              }}
+              onClick={() => togglePermission(role.id, page)}
+            >
+              {page}
+            </motion.div>
+          );
+        })}
+      </div>
 
-const Configuracion = () => {
+      {/* Configuraciones útiles */}
+      <div style={{ marginTop: 15 }}>
+        <Form.Check
+          type="switch"
+          id={`${role.id}-notifications`}
+          label="Activar notificaciones"
+          checked={settings[role.id]?.notifications || false}
+          onChange={() => updateSetting(role.id, "notifications")}
+        />
+        <Form.Check
+          type="switch"
+          id={`${role.id}-create`}
+          label="Puede crear"
+          checked={settings[role.id]?.create || false}
+          onChange={() => updateSetting(role.id, "create")}
+        />
+        <Form.Check
+          type="switch"
+          id={`${role.id}-edit`}
+          label="Puede editar"
+          checked={settings[role.id]?.edit || false}
+          onChange={() => updateSetting(role.id, "edit")}
+        />
+        <Form.Check
+          type="switch"
+          id={`${role.id}-delete`}
+          label="Puede eliminar"
+          checked={settings[role.id]?.delete || false}
+          onChange={() => updateSetting(role.id, "delete")}
+        />
+        <Form.Check
+          type="switch"
+          id={`${role.id}-export`}
+          label="Puede exportar datos"
+          checked={settings[role.id]?.export || false}
+          onChange={() => updateSetting(role.id, "export")}
+        />
+        <Form.Check
+          type="switch"
+          id={`${role.id}-specialReports`}
+          label="Acceso a reportes especiales"
+          checked={settings[role.id]?.specialReports || false}
+          onChange={() => updateSetting(role.id, "specialReports")}
+        />
+      </div>
+    </motion.div>
+  );
+};
+
+// ---------------------------
+// Componente principal
+// ---------------------------
+const ConfiguracionAvanzada = () => {
+  const [roles] = useState([
+    { id: "admin", name: "Administrador", color: "#EF4444" },
+    { id: "user", name: "Usuario", color: "#3B82F6" },
+    { id: "guest", name: "Invitado", color: "#FACC15" },
+  ]);
+
+  const [pages] = useState(["Dashboard", "Usuarios", "Configuración", "Reportes"]);
+
   const [permissions, setPermissions] = useState({});
-  const [notification, setNotification] = useState({ msg: "", type: "success" });
+  const [settings, setSettings] = useState({});
 
-  // Inicializar permisos
+  // Cargar desde localStorage
   useEffect(() => {
-    const initial = {};
-    rolesMock.forEach((role) => {
-      initial[role.id] = {};
-      pagesMock.forEach((page) => (initial[role.id][page] = false));
-    });
-    setPermissions(initial);
+    const savedPermissions = JSON.parse(localStorage.getItem("permissions") || "{}");
+    const savedSettings = JSON.parse(localStorage.getItem("settings") || "{}");
+    setPermissions(savedPermissions);
+    setSettings(savedSettings);
   }, []);
 
-  const togglePermission = (roleId, page) => {
-    setPermissions((prev) => ({
-      ...prev,
-      [roleId]: { ...prev[roleId], [page]: !prev[roleId][page] },
-    }));
-  };
+  // Toggle permisos
+  const togglePermission = useCallback((roleId, page) => {
+    setPermissions((prev) => {
+      const updated = { ...prev, [roleId]: { ...prev[roleId], [page]: !prev[roleId]?.[page] } };
+      localStorage.setItem("permissions", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
 
+  // Actualizar configuraciones adicionales
+  const updateSetting = useCallback((roleId, key) => {
+    setSettings((prev) => {
+      const updated = { ...prev, [roleId]: { ...prev[roleId], [key]: !prev[roleId]?.[key] } };
+      localStorage.setItem("settings", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  // Guardar todo
   const handleSave = () => {
-    console.log("Permisos guardados:", permissions);
-    setNotification({ msg: "Permisos guardados ✅", type: "success" });
-    setTimeout(() => setNotification({ msg: "", type: "success" }), 2500);
+    localStorage.setItem("permissions", JSON.stringify(permissions));
+    localStorage.setItem("settings", JSON.stringify(settings));
+    alert("✅ Configuración guardada correctamente");
   };
 
   return (
     <motion.div style={styles.page}>
-      <motion.h2
-        style={styles.title}
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-      >
-        Configuración de permisos
+      <motion.h2 style={styles.title} initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+        Configuración avanzada de roles (Local)
       </motion.h2>
 
       <div style={styles.rolesContainer}>
         <AnimatePresence>
-          {rolesMock.map((role) => (
-            <motion.div
+          {roles.map((role) => (
+            <RoleCard
               key={role.id}
-              layout
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              style={{ ...styles.roleCard, borderTopColor: role.color }}
-            >
-              <h3 style={{ ...styles.roleTitle, color: role.color }}>{role.name}</h3>
-              <div style={styles.pagesContainer}>
-                {pagesMock.map((page) => (
-                  <motion.div
-                    key={page}
-                    whileHover={{ scale: 1.05 }}
-                    style={{
-                      ...styles.pageItem,
-                      background: permissions[role.id]?.[page] ? role.color : "rgba(255,255,255,0.05)",
-                      color: permissions[role.id]?.[page] ? "#fff" : "#e0e7ff",
-                    }}
-                    onClick={() => togglePermission(role.id, page)}
-                  >
-                    {page}
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
+              role={role}
+              pages={pages}
+              permissions={permissions}
+              togglePermission={togglePermission}
+              settings={settings}
+              updateSetting={updateSetting}
+            />
           ))}
         </AnimatePresence>
       </div>
 
       <Button style={styles.saveBtn} onClick={handleSave}>
-        Guardar permisos
+        Guardar configuración
       </Button>
-
-      {/* NOTIFICACIÓN */}
-      <AnimatePresence>
-        {notification.msg && (
-          <motion.div
-            style={{
-              ...styles.notification,
-              background: notification.type === "error" ? "#EF4444" : "#14b8a6",
-            }}
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
-            {notification.msg}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 };
 
+// ---------------------------
+// Estilos
+// ---------------------------
 const styles = {
   page: {
     width: "100%",
@@ -137,8 +194,8 @@ const styles = {
     background: "linear-gradient(145deg, #1e3a73, #3b82f6)",
     borderRadius: 16,
     padding: 20,
-    minWidth: 280,
-    maxWidth: 320,
+    minWidth: 300,
+    maxWidth: 340,
     boxShadow: "0 16px 44px rgba(0,0,0,0.4)",
     borderTop: "6px solid",
   },
@@ -153,6 +210,7 @@ const styles = {
     flexWrap: "wrap",
     gap: 10,
     justifyContent: "center",
+    marginBottom: 15,
   },
   pageItem: {
     padding: "8px 14px",
@@ -170,16 +228,6 @@ const styles = {
     borderRadius: 14,
     boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
   },
-  notification: {
-    position: "fixed",
-    top: 20,
-    right: 20,
-    color: "#fff",
-    padding: "12px 18px",
-    borderRadius: 14,
-    boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-    zIndex: 10000,
-  },
 };
 
-export default Configuracion;
+export default ConfiguracionAvanzada;

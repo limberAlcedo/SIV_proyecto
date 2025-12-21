@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 const BACKEND_URL = "http://127.0.0.1:8000";
 
@@ -11,65 +11,49 @@ const ALERT_COLORS = {
 
 const NORMAL_BORDER = "#555";
 
-const CameraCard = ({ camId, title }) => {
-  const [data, setData] = useState({
-    nivel: "Baja",
-    nivel_color: "#16a34a",
-    vehiculos: 0,
-    detenidos: 0,
-    alertType: null,
-    asistencia: null,
-    conos_detectados: false,
-  });
-
+const CameraCard = ({ camId, title, alertType, nivel, vehiculos, detenidos, asistencia, focused }) => {
   const [online, setOnline] = useState(true);
   const videoRef = useRef(null);
 
-  const fetchData = async () => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/camera/${camId}/status_full`);
-      const json = await res.json();
-
-      setOnline(json.status === "online");
-
-      let alertType = null;
-      if (json.asistencia_detectada) alertType = "asistencia";
-      else if (json.conos_detectados) alertType = "conos";
-      else if (json.alerta_vehiculo) alertType = "vehiculo";
-      else if (json.accidente_detectado) alertType = "accidente";
-
-      setData({
-        nivel: json.nivel,
-        nivel_color: json.nivel_color || "#16a34a",
-        vehiculos: json.vehiculos,
-        detenidos: json.detenidos,
-        asistencia: json.asistencia_nombre || null,
-        alertType,
-        conos_detectados: json.conos_detectados || false,
-      });
-    } catch (err) {
-      console.error(err);
-      setOnline(false);
-    }
-  };
-
+  // Refresco de mini video (baja calidad)
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 10000);
+    if (focused) return; // si está fullscreen no usar mini video
+    const interval = setInterval(() => {
+      if (videoRef.current) {
+        videoRef.current.src = `${BACKEND_URL}/api/cam/${camId}/stream?quality=low&_ts=${Date.now()}`;
+      }
+    }, 200); // refresco rápido
+    return () => clearInterval(interval);
+  }, [camId, focused]);
+
+  // Verifica si la cámara está online
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/cam/${camId}/status_full`);
+        const json = await res.json();
+        setOnline(json.status === "online");
+      } catch (err) {
+        console.error(err);
+        setOnline(false);
+      }
+    };
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
   }, [camId]);
 
-  const borderColor = data.alertType ? ALERT_COLORS[data.alertType] : NORMAL_BORDER;
+  const borderColor = alertType ? ALERT_COLORS[alertType] : NORMAL_BORDER;
 
   const borderStyle = {
     border: online ? `4px solid ${borderColor}` : `2px solid ${NORMAL_BORDER}`,
     borderRadius: "20px",
-    boxShadow: data.alertType
+    boxShadow: alertType
       ? `0 8px 20px ${borderColor}55`
       : "0 6px 18px rgba(0,0,0,0.2)",
     transition: "all 0.3s ease",
     animation:
-      data.alertType && data.alertType !== "asistencia"
+      alertType && alertType !== "asistencia"
         ? "borderPulse 1.5s infinite alternate"
         : "none",
   };
@@ -81,26 +65,23 @@ const CameraCard = ({ camId, title }) => {
           <>
             <img
               ref={videoRef}
-              src={`${BACKEND_URL}/api/cam/${camId}/stream`}
-              autoPlay
-              muted
-              playsInline
+              src={`${BACKEND_URL}/api/cam/${camId}/stream?quality=low&_ts=${Date.now()}`}
+              alt={title}
               className="stream"
             />
 
             {/* Título sobre el video */}
-            <div className="camera-title">{data.asistencia ? data.asistencia : title}</div>
+            <div className="camera-title">{asistencia || title}</div>
 
             {/* Badges */}
             <div className="live-badge">EN VIVO 🔴</div>
-            <div className="level-badge" style={{ background: data.nivel_color }}>
-              🚦 {data.nivel}
+            <div className="level-badge" style={{ background: nivel ? nivel.color : "#16a34a" }}>
+              🚦 {nivel || "Baja"}
             </div>
 
-            {data.alertType === "vehiculo" && data.detenidos > 0 && (
+            {alertType === "vehiculo" && detenidos > 0 && (
               <div className="alert-badge vehiculo-alert">
-                🚨 {data.detenidos} Vehiculo{data.detenidos > 1 ? "s" : ""} detenido
-                {data.detenidos > 1 ? "s" : ""}
+                🚨 {detenidos} Vehiculo{detenidos > 1 ? "s" : ""} detenido{detenidos > 1 ? "s" : ""}
               </div>
             )}
           </>

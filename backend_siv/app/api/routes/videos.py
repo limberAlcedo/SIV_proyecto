@@ -1,20 +1,20 @@
+# app/api/routes/videos.py
 import os
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Form, Depends
 from sqlalchemy.orm import Session
-from app import crud, schemas, database
-from fastapi import APIRouter
+from app import models, schemas, database, crud
+from pydantic import BaseModel
 
-router = APIRouter(prefix="/videos", tags=["videos"])
-# app/api/routes/videos.py
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from app import schemas, crud, database
+# Carpeta de grabaciones dentro del backend
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "videos")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# ---------------------------
+# Router
+video_router = APIRouter(tags=["Videos"])
+
 # Dependencia DB
-# ---------------------------
 def get_db():
     db = database.SessionLocal()
     try:
@@ -22,61 +22,67 @@ def get_db():
     finally:
         db.close()
 
-# ---------------------------
-# Router videos
-# ---------------------------
-video_router = APIRouter(prefix="/videos", tags=["videos"])
+# -------------------------
+# Modelo Pydantic para respuesta
+# -------------------------
+class VideoListResponse(BaseModel):
+    id: int
+    camera_id: int
+    filename: str
+    event_type: str
+    upload_time: datetime
+    url: str
 
-@video_router.post("/", response_model=schemas.VideoResponse)
-def upload_video(video: schemas.VideoCreate, db: Session = Depends(get_db)):
-    return crud.create_video(db, video)
-
-@video_router.get("/", response_model=list[schemas.VideoResponse])
+# -------------------------
+# Listar videos (sin token)
+# -------------------------
+@video_router.get("/", response_model=list[VideoListResponse])
 def list_videos(db: Session = Depends(get_db)):
-    return crud.get_videos(db)
+    videos = crud.get_videos(db)  # Trae todos los videos de la DB
+    return [
+        VideoListResponse(
+            id=v.id,
+            camera_id=v.camera_id,
+            filename=v.filename,
+            event_type=v.event_type,
+            upload_time=v.upload_time,
+            url=f"/videos/{v.filename}"
+        ) for v in videos
+    ]
 
-
-# =========================
-# Registrar video de YOLO
-# =========================
-@router.post("/register", response_model=schemas.VideoResponse)
+# -------------------------
+# Registrar video (subida automática)
+# -------------------------
+@video_router.post("/register", response_model=VideoListResponse)
 async def register_video(
     camera_id: int = Form(...),
     event_type: str = Form(...),
     video_file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    # Nombre único
+    # Nombre único para el archivo
     extension = os.path.splitext(video_file.filename)[1]
     filename = f"{uuid.uuid4()}{extension}"
     save_path = os.path.join(UPLOAD_DIR, filename)
 
-    # Guardar archivo
+    # Guardar el archivo
     with open(save_path, "wb") as f:
         f.write(await video_file.read())
 
+    # Guardar info en la DB
     video_data = schemas.VideoCreate(
         camera_id=camera_id,
         filename=filename,
         event_type=event_type,
         upload_time=datetime.now()
     )
-    return crud.create_video(db, video_data)
+    video = crud.create_video(db, video_data)
 
-# =========================
-# Listar videos para frontend
-# =========================
-@router.get("/", response_model=list[schemas.VideoResponse])
-def list_videos(db: Session = Depends(get_db)):
-    videos = crud.get_videos(db)
-    return [
-        {
-            "id": v.id,
-            "camera_id": v.camera_id,
-            "event_type": v.event_type,
-            "upload_time": v.upload_time,
-            "url": f"/subido/{v.filename}"
-        } for v in videos
-    ]
-
-
+    return VideoListResponse(
+        id=video.id,
+        camera_id=video.camera_id,
+        filename=video.filename,
+        event_type=video.event_type,
+        upload_time=video.upload_time,
+        url=f"/videos/{video.filename}"
+    )

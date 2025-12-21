@@ -1,16 +1,15 @@
-# app/api/routes/incidentes.py
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
-from app import crud, schemas
-from app.database import get_db
-from app.api.routes.dependencies import require_roles
+from typing import List, Optional
+from datetime import datetime, date, time
 
-router = APIRouter(prefix="/api/incidentes", tags=["Incidentes"])
+from app import crud, schemas, models
+from app.api.routes.dependencies import get_db, require_roles
+
+router = APIRouter(tags=["Incidentes"])  # sin prefix, como pediste
 
 # ---------------------------
-# Auxiliar
+# Auxiliar para listas
 # ---------------------------
 def fix_list(value):
     if value is None:
@@ -20,23 +19,21 @@ def fix_list(value):
     return [value]
 
 # ---------------------------
-# GET todos (con roles)
+# GET todos los incidentes
 # ---------------------------
 @router.get("/", response_model=List[schemas.IncidenteResponse])
 def get_incidentes(
     db: Session = Depends(get_db),
-    current_user = Depends(require_roles("admin", "supervisor", "operador"))
+    current_user: models.User = Depends(require_roles("admin", "supervisor", "operador"))
 ):
-    incidentes = crud.get_incidentes(db)
-    
-    # Operador ve solo abiertos
-    if current_user.role.name == "operador":
-        incidentes = [inc for inc in incidentes if inc.status == "Activo"]
-    
-    for inc in incidentes:
+    incidencias = crud.get_incidentes(db)
+    for inc in incidencias:
         inc.pista = fix_list(inc.pista)
         inc.trabajos_via = fix_list(inc.trabajos_via)
-    return incidentes
+        # Agregar los nombres desde las relaciones
+        inc.created_by_name = inc.creador.name if inc.creador else "Desconocido"
+        inc.closed_by_name = inc.cerrador.name if inc.cerrador else "-"
+    return incidencias
 
 # ---------------------------
 # GET por ID
@@ -45,14 +42,14 @@ def get_incidentes(
 def get_incidente(
     incidente_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(require_roles("admin", "supervisor", "operador"))
+    current_user: models.User = Depends(require_roles("admin", "supervisor", "operador"))
 ):
     inc = crud.get_incidente(db, incidente_id)
     if not inc:
         raise HTTPException(status_code=404, detail="Incidente no encontrado")
     
-    # Operador no ve cerrados
-    if current_user.role.name == "operador" and inc.status != "Activo":
+    # Operador solo puede ver activos
+    if current_user.role.name.lower() == "operador" and inc.status != "Activo":
         raise HTTPException(status_code=403, detail="No tienes permiso para ver este incidente")
     
     inc.pista = fix_list(inc.pista)
@@ -60,48 +57,94 @@ def get_incidente(
     return inc
 
 # ---------------------------
-# POST crear (todos menos quien no tiene permiso)
+# POST crear
 # ---------------------------
 @router.post("/", response_model=schemas.IncidenteResponse)
 def create_incidente(
     incidente: schemas.IncidenteCreate,
     db: Session = Depends(get_db),
-    current_user = Depends(require_roles("admin", "supervisor", "operador"))
+    current_user: models.User = Depends(require_roles("admin", "supervisor", "operador"))
 ):
     db_incidente = crud.create_incidente(db, incidente)
-    # Registrar quien crea
     db_incidente.created_by_id = current_user.id
-    db_incidente.created_by = current_user.username
+    db_incidente.created_at = datetime.utcnow()  # <-- auto fecha/hora actual
     db.commit()
     db.refresh(db_incidente)
     return db_incidente
 
+
 # ---------------------------
-# PUT actualizar (solo admin/supervisor)
+# PUT actualizar incidente
 # ---------------------------
 @router.put("/{incidente_id}/", response_model=schemas.IncidenteResponse)
 def update_incidente(
     incidente_id: int,
     data: schemas.IncidenteUpdate,
     db: Session = Depends(get_db),
-    current_user = Depends(require_roles("admin", "supervisor"))
+    current_user: models.User = Depends(require_roles("admin", "supervisor", "operador"))
 ):
-    inc = crud.update_incidente(db, incidente_id, data)
+    inc = crud.get_incidente(db, incidente_id)
     if not inc:
         raise HTTPException(status_code=404, detail="Incidente no encontrado")
-    return inc
+
+    # Operador solo puede editar sus incidentes activos
+    if current_user.role.name.lower() == "operador":
+        if inc.status != "Activo":
+            raise HTTPException(status_code=403, detail="No puedes editar un incidente cerrado")
+        if inc.created_by_id != current_user.id:
+            raise HTTPException(status_code=403, detail="No puedes editar un incidente que no creaste")
+
+    # Admin/Supervisor pueden editar cualquier incidente
+    updated_inc = crud.update_incidente(db, incidente_id, data)
+    if not updated_inc:
+        raise HTTPException(status_code=404, detail="Incidente no encontrado")
+    return updated_inc
+
 
 # ---------------------------
-# PATCH cerrar (solo admin/supervisor)
+# PATCH cerrar incidente
 # ---------------------------
 @router.patch("/cerrar/{incidente_id}/", response_model=schemas.IncidenteResponse)
 def close_incidente(
     incidente_id: int,
-    cerrado_por_id: int,
+    close_by_id: int,
+    end_date: Optional[date] = None,
+    end_time: Optional[time] = None,
     db: Session = Depends(get_db),
-    current_user = Depends(require_roles("admin", "supervisor"))
+    current_user: models.User = Depends(require_roles("admin", "supervisor"))
 ):
-    inc = crud.close_incidente(db, incidente_id, cerrado_por_id)
+    inc = crud.get_incidente(db, incidente_id)
     if not inc:
         raise HTTPException(status_code=404, detail="Incidente no encontrado")
+
+    # Validación de fecha/hora obligatoria
+    if not end_date or not end_time:
+        raise HTTPException(status_code=400, detail="Fecha y hora de cierre son obligatorias")
+
+    # Solo admin/supervisor pueden cerrar
+    inc.status = "Cerrado"
+    inc.close_by_id = close_by_id
+    inc.closed_at = datetime.combine(end_date, end_time)
+    db.commit()
+    db.refresh(inc)
     return inc
+
+# =========================
+# GET conteo por prioridad
+# =========================
+@router.get("/prioridad/", response_model=List[dict])
+def get_prioridad_counts(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_roles("admin", "supervisor", "operador"))
+):
+    """
+    Devuelve la cantidad de incidentes por prioridad: Alta, Media, Baja
+    """
+    prioridades = ["Alta", "Media", "Baja"]
+    counts = []
+
+    for p in prioridades:
+        total = db.query(models.Incidente).filter(models.Incidente.priority == p).count()
+        counts.append({"name": p, "value": total})
+
+    return counts

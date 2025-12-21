@@ -1,147 +1,121 @@
 // src/App.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import Layout from "./layout/Layout";
 import Login from "./pages/Login";
+import Usuarios from "./pages/Usuarios";
 import Camaras from "./pages/Camaras";
 import Grabaciones from "./pages/Grabaciones";
-import Incidentes from "./pages/Incidentes/IncidentesMain";
 import Reportes from "./pages/Reportes";
-import Configuracion from "./pages/Configuracion";
-import Usuarios from "./pages/Usuarios";
-import "bootstrap/dist/css/bootstrap.min.css";
+import IncidentesKanban from "./pages/Incidentes/IncidentesMain";
+import Configuracion from "./pages/Configuracion"; // <--- importamos Configuración
+import CameraCard from "./components/CameraCard.jsx"; // ajusta según la ruta
 
-// ------------------------
-// Protected Route
-// ------------------------
-const ProtectedRoute = ({ user, allowedRoles = [], children }) => {
-  if (!user) return <Navigate to="/" replace />;
-  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role.toLowerCase())) {
-    return <Navigate to="/camaras" replace />;
-  }
-  return <Layout>{children}</Layout>;
-};
 
-// ------------------------
-// Main App
-// ------------------------
-const App = () => {
-  const [user, setUser] = useState(null);
-
-  // Cargar usuario desde localStorage al iniciar
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) setUser(JSON.parse(storedUser));
-  }, []);
-
-  const handleLogin = (userData) => {
-    localStorage.setItem("user", JSON.stringify(userData));
-    setUser(userData);
-  };
-
-  const handleLogout = () => {
-    const confirmLogout = window.confirm("¿Estás seguro de que quieres cerrar sesión?");
-    if (!confirmLogout) return;
+// Ruta privada con control de roles
+function PrivateRoute({ children, allowedRoles }) {
+  const token = localStorage.getItem("token");
+  let user = null;
+  try {
+    const userStr = localStorage.getItem("user");
+    if (userStr) user = JSON.parse(userStr);
+  } catch {
     localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    setUser(null);
-  };
+  }
 
-  // ------------------------
-  // Animación de rutas
-  // ------------------------
-  const pageTransition = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0, transition: { duration: 0.4 } },
-    exit: { opacity: 0, y: -20, transition: { duration: 0.3 } },
-  };
+  if (!token || !user) return <Navigate to="/login" replace />;
+  if (allowedRoles && !allowedRoles.includes(user.role_name?.toLowerCase())) return <Navigate to="/login" replace />;
+
+  return children;
+}
+
+export default function App() {
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const userStr = localStorage.getItem("user");
+      return userStr ? JSON.parse(userStr) : null;
+    } catch {
+      localStorage.removeItem("user");
+      return null;
+    }
+  });
+
+  const handleLogin = (user) => setCurrentUser(user);
 
   return (
-    <div style={styles.appBackground}>
-      <Router>
-        <AnimatePresence exitBeforeEnter>
-          <Routes>
-            {/* Login */}
-            <Route
-              path="/"
-              element={user ? <Navigate to="/camaras" replace /> : <Login onLogin={handleLogin} />}
-            />
+    <Router>
+      <Routes>
+        <Route path="/login" element={<Login onLogin={handleLogin} />} />
 
-            {/* Rutas protegidas */}
-            <Route
-              path="/camaras"
-              element={
-                <ProtectedRoute user={user}>
-                  <motion.div {...pageTransition}><Camaras onLogout={handleLogout} /></motion.div>
-                </ProtectedRoute>
-              }
-            />
+        <Route
+          path="/usuarios"
+          element={
+            <PrivateRoute allowedRoles={["admin", "supervisor"]}>
+              <Layout>
+                <Usuarios currentUser={currentUser} />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
 
-            <Route
-              path="/incidentes"
-              element={
-                <ProtectedRoute user={user}>
-                  <motion.div {...pageTransition}><Incidentes currentUser={user} onLogout={handleLogout} /></motion.div>
-                </ProtectedRoute>
-              }
-            />
+        <Route
+          path="/reportes"
+          element={
+            <PrivateRoute allowedRoles={["supervisor", "admin"]}>
+              <Layout>
+                <Reportes currentUser={currentUser} />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
 
-            <Route
-              path="/configuracion"
-              element={
-                <ProtectedRoute user={user}>
-                  <motion.div {...pageTransition}><Configuracion onLogout={handleLogout} /></motion.div>
-                </ProtectedRoute>
-              }
-            />
+        <Route
+          path="/camaras"
+          element={
+            <PrivateRoute allowedRoles={["operador", "supervisor", "admin"]}>
+              <Layout>
+                <Camaras currentUser={currentUser} />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
 
-            <Route
-              path="/grabaciones"
-              element={
-                <ProtectedRoute user={user} allowedRoles={["supervisor", "admin"]}>
-                  <motion.div {...pageTransition}><Grabaciones onLogout={handleLogout} /></motion.div>
-                </ProtectedRoute>
-              }
-            />
+        <Route
+          path="/grabaciones"
+          element={
+            <PrivateRoute allowedRoles={["supervisor", "admin"]}>
+              <Layout>
+                <Grabaciones currentUser={currentUser} />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
 
-            <Route
-              path="/reportes"
-              element={
-                <ProtectedRoute user={user} allowedRoles={["supervisor", "admin"]}>
-                  <motion.div {...pageTransition}><Reportes onLogout={handleLogout} /></motion.div>
-                </ProtectedRoute>
-              }
-            />
+        <Route
+          path="/incidentes"
+          element={
+            <PrivateRoute allowedRoles={["operador", "supervisor", "admin"]}>
+              <Layout>
+                <IncidentesKanban currentUser={currentUser} />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
 
-            <Route
-              path="/usuarios"
-              element={
-                <ProtectedRoute user={user} allowedRoles={["supervisor", "admin"]}>
-                  <motion.div {...pageTransition}><Usuarios onLogout={handleLogout} /></motion.div>
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </AnimatePresence>
-      </Router>
-    </div>
+        {/* Nueva ruta de Configuración */}
+        <Route
+          path="/configuracion"
+          element={
+            <PrivateRoute allowedRoles={["admin", "supervisor"]}>
+              <Layout>
+                <Configuracion currentUser={currentUser} />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </Router>
   );
-};
-
-// ------------------------
-// Estilos
-// ------------------------
-const styles = {
-  appBackground: {
-    minHeight: "100vh",
-    width: "100%",
-    fontFamily: "'Poppins', sans-serif",
-    background: "linear-gradient(135deg, #0f172a, #1a3776, #0a3098)",
-    backgroundAttachment: "fixed",
-    color: "#fff",
-    transition: "all 0.3s",
-  },
-};
-
-export default App;
+}

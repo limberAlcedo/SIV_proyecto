@@ -24,19 +24,18 @@ async function loginUser(username, password) {
     throw new Error(data.detail || "Usuario o contraseña incorrectos ❌");
   }
 
-  // Retorna token y usuario
-  return data;
+  return data; // { access_token, token_type, user }
 }
 
 // ============ REDIRECCIÓN POR ROL ============
-const redirectByRole = (navigate, role) => {
+const redirectByRole = (navigate, role_name) => {
   const routes = {
     admin: "/usuarios",
     supervisor: "/reportes",
-    user: "/camaras",
+    operador: "/camaras", // antes estaba 'user'
   };
 
-  navigate(routes[role] || "/camaras", { replace: true });
+  navigate(routes[role_name] || "/camaras", { replace: true });
 };
 
 export default function Login({ onLogin }) {
@@ -53,11 +52,16 @@ export default function Login({ onLogin }) {
 
   // ===== SI YA ESTÁ LOGUEADO =====
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("user") || "null");
-    const token = localStorage.getItem("token");
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "null");
+      const token = localStorage.getItem("token");
 
-    if (user && token) {
-      redirectByRole(navigate, user.role);
+      if (user && token) {
+        redirectByRole(navigate, user.role_name); // CORREGIDO
+      }
+    } catch {
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
     }
   }, [navigate]);
 
@@ -70,22 +74,20 @@ export default function Login({ onLogin }) {
     try {
       const response = await loginUser(username, password);
 
-      // Guardar token, tipo y usuario en localStorage
+      // Guardar token y usuario
       localStorage.setItem("token", response.access_token);
       localStorage.setItem("token_type", response.token_type || "bearer");
       localStorage.setItem("user", JSON.stringify(response.user));
 
-      // Llamar callback de login si existe
+      // Callback
       onLogin?.(response.user);
 
       // Redirigir según rol
-      redirectByRole(navigate, response.user.role);
+      redirectByRole(navigate, response.user.role_name); // CORREGIDO
 
     } catch (err) {
       setError(err.message);
       setShake(true);
-
-      // Enfocar input
       (username ? passwordRef : usernameRef).current?.focus();
       setTimeout(() => setShake(false), 500);
     } finally {

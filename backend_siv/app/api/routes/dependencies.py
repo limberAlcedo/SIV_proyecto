@@ -1,20 +1,28 @@
 # app/api/dependencies.py
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session, joinedload
 from jose import JWTError
-from app import models, crud
-from app.database import get_db
-from app.utils import decode_token
+
+from app import models, database, utils
 
 # ============================
-# Configuración OAuth2
+# OAuth2 con token JWT
 # ============================
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 # ============================
-# Obtener usuario actual con rol cargado
+# DB
+# ============================
+def get_db():
+    db = database.SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# ============================
+# Obtener usuario actual con rol
 # ============================
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     """
@@ -22,7 +30,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     Carga la relación User -> Role para verificar permisos.
     """
     try:
-        payload = decode_token(token)
+        payload = utils.decode_token(token)
         user_id: int = payload.get("user_id")
         if user_id is None:
             raise HTTPException(
@@ -67,4 +75,3 @@ def require_roles(*roles: str):
         
         return current_user
     return role_checker
-                

@@ -25,6 +25,7 @@ class User(Base):
     password = Column(String(200), nullable=False)
     role_id = Column(Integer, ForeignKey("roles.id"))
     role = relationship("Role", back_populates="users")
+    last_seen = Column(DateTime, nullable=True)  # opcional para usuarios activos
 
 # =========================
 # INCIDENTES
@@ -46,10 +47,17 @@ class Incidente(Base):
     ubicacion_via = Column(String(100), nullable=True)
     trabajos_via = Column(JSON, nullable=False, default=[])
     status = Column(String(20), nullable=False, default="Activo")
-    created_by_id = Column(Integer, nullable=True)
-    cerrado_por_id = Column(Integer, nullable=True)
+    
+    # Usuarios que abrieron y cerraron
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    close_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     closed_at = Column(DateTime, nullable=True)
+
+    # Relaciones opcionales para poder acceder al usuario desde el incidente
+    creador = relationship("User", foreign_keys=[created_by_id], backref="incidentes_creados")
+    cerrador = relationship("User", foreign_keys=[close_by_id], backref="incidentes_cerrados")
 
 # =========================
 # VIDEOS

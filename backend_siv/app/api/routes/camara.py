@@ -45,7 +45,7 @@ def stop_camera_endpoint(cam_id: int):
 # ---------------------------
 # STATUS COMPLETO
 # ---------------------------
-@status_router.get("/camera/{cam_id}/status_full")
+@status_router.get("/cam/{cam_id}/status_full")  # <-- cambiamos "camera" por "cam"
 def camera_status_full(cam_id: int):
     global _last_assistance_seen, _last_cones_seen
 

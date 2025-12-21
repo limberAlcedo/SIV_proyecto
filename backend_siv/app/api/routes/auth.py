@@ -5,10 +5,7 @@ from jose import JWTError
 
 from app import models, schemas, database, utils
 
-auth_router = APIRouter(
-    prefix="/auth",
-    tags=["auth"]
-)
+auth_router = APIRouter(tags=["auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 

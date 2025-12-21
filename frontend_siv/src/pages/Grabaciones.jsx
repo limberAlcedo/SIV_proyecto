@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
-  Container, Row, Col, Card, Spinner, Form, Button, Pagination, OverlayTrigger, Tooltip
+  Container, Row, Col, Card, Spinner, Form, Button, Pagination, OverlayTrigger, Tooltip, Modal, Badge
 } from "react-bootstrap";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -9,64 +9,119 @@ import { motion } from "framer-motion";
 const BACKEND_URL = "http://127.0.0.1:8000";
 
 const glassCard = {
-  background: "rgba(255,255,255,0.08)",
-  backdropFilter: "blur(14px)",
-  border: "1px solid rgba(255,255,255,0.15)",
+  background: "rgba(255,255,255,0.05)",
+  backdropFilter: "blur(15px)",
+  border: "1px solid rgba(255,255,255,0.2)",
   color: "#fff",
-  borderRadius: 16
+  borderRadius: 20,
+  overflow: "hidden",
+  position: "relative",
+  transition: "transform 0.3s, box-shadow 0.3s",
+  cursor: "pointer",
+  boxShadow: "0 4px 30px rgba(0,0,0,0.3)"
 };
+
+const overlayStyle = {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  width: "100%",
+  height: "100%",
+  background: "rgba(0,0,0,0.55)",
+  color: "#fff",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  padding: 10,
+  opacity: 0,
+  transition: "opacity 0.3s",
+  borderRadius: 20
+};
+
+const overlayHoverStyle = { opacity: 1 };
+
 const bgGradient = "linear-gradient(135deg, #0f172a, #1a3776, #0a3098)";
 
-export default function GrabacionesMini() {
+export default function Grabaciones() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [selectedCamera, setSelectedCamera] = useState(""); // solo cámara
+  const [selectedCamera, setSelectedCamera] = useState(""); 
   const [page, setPage] = useState(1);
+  const [modalVideo, setModalVideo] = useState(null);
+  const videoRefs = useRef({});
+  const hoverTimeouts = useRef({});
   const ITEMS_PER_PAGE = 24;
 
-  const fetchVideos = useCallback(async () => {
+  // ---------------------------
+  // Traer videos desde backend
+  // ---------------------------
+  const fetchVideos = async () => {
     setLoading(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/videos/`);
       const data = await res.json();
       setVideos(data.map(v => ({
-        id: v.id,
-        cameraName: `Cámara ${v.camera_id}`,
-        user: v.username || `Usuario ${v.camera_id}`,
-        date: v.upload_time?.slice(0, 10),
-        startTime: v.upload_time?.slice(11,16),
-        url: `${BACKEND_URL}/videos/${v.filename}`,
-        type: v.event_type || "manual"
+        id: v.filename || `video-${Math.random()}`,
+        cameraName: v.camera_id ? `Cámara ${v.camera_id}` : "Manual",
+        type: v.event_type || "manual",
+        date: v.upload_time ? v.upload_time.slice(0,10) : "",
+        startTime: v.upload_time ? v.upload_time.slice(11,16) : "",
+        fullDateTime: v.upload_time || "",
+        username: v.username || "Desconocido",
+        filename: v.filename || "video_desconocido.mp4",
+        url: v.filename ? `${BACKEND_URL}/videos/${v.filename}` : ""
       })));
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("❌ Error al cargar grabaciones");
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  useEffect(() => { fetchVideos(); }, [fetchVideos]);
+  useEffect(() => { fetchVideos(); }, []);
   useEffect(() => { setPage(1); }, [search, fromDate, toDate, selectedCamera]);
 
+  // ---------------------------
+  // Filtrado y ordenamiento
+  // ---------------------------
   const filteredVideos = useMemo(() => 
     videos
-      .filter(v => search ? (v.cameraName + v.type + v.user).toLowerCase().includes(search.toLowerCase()) : true)
+      .filter(v => search ? (v.cameraName + v.type + v.username).toLowerCase().includes(search.toLowerCase()) : true)
       .filter(v => fromDate ? v.date >= fromDate : true)
       .filter(v => toDate ? v.date <= toDate : true)
       .filter(v => selectedCamera ? v.cameraName === selectedCamera : true)
   , [videos, search, fromDate, toDate, selectedCamera]);
 
-  const totalPages = Math.ceil(filteredVideos.length / ITEMS_PER_PAGE);
-  const paginated = filteredVideos.slice((page-1)*ITEMS_PER_PAGE, page*ITEMS_PER_PAGE);
+  const sortedVideos = useMemo(() =>
+    filteredVideos.sort((a,b) => new Date(b.fullDateTime) - new Date(a.fullDateTime))
+  , [filteredVideos]);
 
-  const handleDownload = (url, filename) => {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
+  const totalPages = Math.ceil(sortedVideos.length / ITEMS_PER_PAGE);
+  const paginated = sortedVideos.slice((page-1)*ITEMS_PER_PAGE, page*ITEMS_PER_PAGE);
+
+  // ---------------------------
+  // Descargar video
+  // ---------------------------
+  const handleDownload = async (url, filename) => {
+    if (!url) return toast.error("❌ URL inválida");
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Error descargando el video");
+      const blob = await res.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename || "video.mp4";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success(`✅ Descarga iniciada: ${filename}`);
+    } catch {
+      toast.error("❌ No se pudo descargar el video");
+    }
   };
 
   const cameras = Array.from(new Set(videos.map(v => v.cameraName)));
@@ -84,63 +139,137 @@ export default function GrabacionesMini() {
     return pages;
   };
 
+  const typeColor = (type) => {
+    switch(type.toLowerCase()) {
+      case "manual": return "warning";
+      case "automatico": return "info";
+      default: return "light";
+    }
+  };
+
+  // ---------------------------
+  // Preview aleatorio de 3 segundos
+  // ---------------------------
+  const handleMouseEnter = (id) => {
+    const video = videoRefs.current[id];
+    if(!video) return;
+
+    video.onloadedmetadata = () => {
+      const maxStart = Math.max(0, video.duration - 3);
+      const startTime = Math.random() * maxStart;
+      video.currentTime = startTime;
+      video.play();
+    };
+
+    hoverTimeouts.current[id] = setTimeout(() => {
+      if(video) {
+        video.pause();
+        video.currentTime = 0;
+      }
+    }, 3000);
+  };
+
+  const handleMouseLeave = (id) => {
+    const video = videoRefs.current[id];
+    if(video) {
+      video.pause();
+      video.currentTime = 0;
+    }
+    if(hoverTimeouts.current[id]) {
+      clearTimeout(hoverTimeouts.current[id]);
+      delete hoverTimeouts.current[id];
+    }
+  };
+
   return (
-    <Container fluid style={{ minHeight:"100vh", background:bgGradient }}>
+    <Container fluid style={{ minHeight:"100vh", background:bgGradient, paddingTop:20 }}>
+      <ToastContainer autoClose={2500} />
       <div style={{ maxWidth:1400, margin:"0 auto", padding:16 }}>
-        <ToastContainer autoClose={2500} />
 
         <motion.h2 className="text-center text-warning mb-4" initial={{opacity:0,y:-10}} animate={{opacity:1,y:0}}>
           📹 Grabaciones
         </motion.h2>
 
-        {/* FILTROS: fecha, cámara y búsqueda */}
-        <Card style={{ ...glassCard, padding:"6px 12px" }} className="mb-3">
-          <Card.Body className="d-flex flex-wrap gap-2 align-items-center justify-content-center p-1">
+        {/* FILTROS */}
+        <Card style={{ ...glassCard, padding:"10px 16px", marginBottom:20, background:"rgba(255,255,255,0.08)" }}>
+          <Card.Body className="d-flex flex-wrap gap-3 align-items-center justify-content-center p-2">
             <Form.Control 
-              size="sm" type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} 
-              style={{ width: "130px", fontSize:"0.75rem", padding:"2px 4px" }}
+              size="sm" 
+              type="date" 
+              value={fromDate} 
+              onChange={e => setFromDate(e.target.value)} 
+              style={{ width: "150px", fontSize:"1rem", padding:"6px 8px", borderRadius:10 }}
             />
             <Form.Control 
-              size="sm" type="date" value={toDate} onChange={e => setToDate(e.target.value)} 
-              style={{ width: "130px", fontSize:"0.75rem", padding:"2px 4px" }}
+              size="sm" 
+              type="date" 
+              value={toDate} 
+              onChange={e => setToDate(e.target.value)} 
+              style={{ width: "150px", fontSize:"1rem", padding:"6px 8px", borderRadius:10 }}
             />
-            <Form.Select size="sm" value={selectedCamera} onChange={e=>setSelectedCamera(e.target.value)} style={{ width:"150px", fontSize:"0.75rem" }}>
+            <Form.Select 
+              size="sm" 
+              value={selectedCamera} 
+              onChange={e=>setSelectedCamera(e.target.value)} 
+              style={{ width:"170px", fontSize:"1rem", padding:"6px 8px", borderRadius:10 }}
+            >
               <option value="">Todas las cámaras</option>
               {cameras.map((c,i)=><option key={i} value={c}>{c}</option>)}
             </Form.Select>
             <Form.Control 
-              size="sm" placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} 
-              style={{ width: "200px", fontSize:"0.85rem", padding:"4px 6px" }}
+              size="sm" 
+              placeholder="Buscar..." 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+              style={{ width: "220px", fontSize:"1rem", padding:"6px 8px", borderRadius:10 }}
             />
-            <Button size="sm" variant="outline-light" onClick={() => { setFromDate(""); setToDate(""); setSearch(""); setSelectedCamera(""); }} style={{ fontSize:"0.75rem" }}>
+            <Button 
+              size="sm" 
+              variant="outline-light" 
+              onClick={() => { setFromDate(""); setToDate(""); setSearch(""); setSelectedCamera(""); }} 
+              style={{ fontSize:"1rem", padding:"6px 12px", borderRadius:10 }}
+            >
               Limpiar
             </Button>
           </Card.Body>
         </Card>
 
-        {/* GRID DE VIDEOS MINI */}
+        {/* GRID DE VIDEOS */}
         {loading ? <div className="text-center my-5"><Spinner animation="border" variant="light"/></div> : (
-          <Row className="g-2">
-            {paginated.length === 0 && <div className="col-12 text-center">No hay grabaciones</div>}
+          <Row className="g-3">
+            {paginated.length === 0 && <div className="col-12 text-center text-white">No hay grabaciones</div>}
             {paginated.map(v => (
               <Col key={v.id} xs={6} sm={4} md={3} lg={2}>
-                <Card className="h-100" style={{...glassCard, cursor:"pointer", transition:"0.3s", overflow:"hidden"}} 
-                  onMouseEnter={e=>e.currentTarget.style.transform="scale(1.03)"} 
-                  onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
+                <Card 
+                  style={glassCard} 
+                  onMouseEnter={()=>handleMouseEnter(v.id)}
+                  onMouseLeave={()=>handleMouseLeave(v.id)}
+                  onClick={()=>v.url && setModalVideo(v)}
+                  className="hover-card"
+                >
                   <video
-                    src={v.url}
-                    style={{ width: "100%", height: 90, objectFit: "cover", borderTopLeftRadius:16, borderTopRightRadius:16 }}
-                    controls
+                    ref={el => videoRefs.current[v.id] = el}
+                    src={v.url || ""}
+                    style={{ width: "100%", height: 130, objectFit: "cover", borderRadius:20 }}
+                    muted
+                    loop
                   />
-                  <Card.Body className="p-1 text-center" style={{ fontSize: "0.7rem" }}>
-                    <div><strong>{v.cameraName}</strong></div>
-                    <div>{v.user}</div>
-                    <div>{v.date} {v.startTime}</div>
-                    <div>{v.type}</div>
-                    <OverlayTrigger placement="top" overlay={<Tooltip>Descargar video</Tooltip>}>
-                      <Button size="sm" variant="outline-light" className="mt-1" onClick={()=>handleDownload(v.url, `video_${v.id}.mp4`)}>⬇️</Button>
-                    </OverlayTrigger>
-                  </Card.Body>
+                  <div className="overlay" style={overlayStyle}>
+                    <div>
+                      <div><strong>{v.cameraName}</strong></div>
+                      <div>{v.username}</div>
+                      <div>
+                        <OverlayTrigger placement="top" overlay={<Tooltip>{v.fullDateTime}</Tooltip>}>
+                          <span>{v.date} {v.startTime}</span>
+                        </OverlayTrigger>
+                      </div>
+                      <Badge bg={typeColor(v.type)} style={{fontSize:"0.7rem", marginTop:4}}>{v.type}</Badge>
+                    </div>
+                    <div className="d-flex justify-content-center gap-1 mt-1">
+                      <Button size="sm" variant="outline-light" onClick={(e)=>{ e.stopPropagation(); handleDownload(v.url, v.filename) }}>⬇️</Button>
+                      <Button size="sm" variant="outline-light" onClick={(e)=>{ e.stopPropagation(); v.url && navigator.clipboard.writeText(v.url); toast.success("📋 Copiado al portapapeles"); }}>🔗</Button>
+                    </div>
+                  </div>
                 </Card>
               </Col>
             ))}
@@ -148,9 +277,18 @@ export default function GrabacionesMini() {
         )}
 
         {/* PAGINACIÓN */}
-        {totalPages>1 && <Pagination className="justify-content-center mt-3">
-          {renderPagination()}
-        </Pagination>}
+        {totalPages>1 && <Pagination className="justify-content-center mt-4">{renderPagination()}</Pagination>}
+
+        {/* MODAL VIDEO */}
+        <Modal show={!!modalVideo} onHide={()=>setModalVideo(null)} size="lg" centered>
+          <Modal.Header closeButton>
+            <Modal.Title>{modalVideo?.filename || "Video"}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {modalVideo && <video src={modalVideo.url || ""} controls style={{ width:"100%" }} />}
+          </Modal.Body>
+        </Modal>
+
       </div>
     </Container>
   );

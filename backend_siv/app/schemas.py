@@ -1,23 +1,19 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, date, time
 
-# ======================
+# =========================
 # USUARIOS
-# ======================
-# ======================
-# USERS
-# ======================
+# =========================
 class UserBase(BaseModel):
     username: str
-    name: str          # nombre completo obligatorio
+    name: str
     email: EmailStr
 
 class UserCreate(UserBase):
     password: str
     role: str = "operador"
 
-# Login con username
 class UserLogin(BaseModel):
     username: str
     password: str
@@ -31,14 +27,14 @@ class UserResponse(UserBase):
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
-    name: Optional[str] = None  # opcional en update
+    name: Optional[str] = None
     email: Optional[EmailStr] = None
     password: Optional[str] = None
     role: Optional[str] = None
 
-# ======================
+# =========================
 # INCIDENTES
-# ======================
+# =========================
 class IncidenteBase(BaseModel):
     type: str
     priority: str
@@ -49,15 +45,14 @@ class IncidenteBase(BaseModel):
     end_date: Optional[date] = None
     end_time: Optional[time] = None
     observacion: Optional[str] = None
-    pista: Optional[List] = []
+    pista: Optional[List[str]] = []
     senalizacion: Optional[str] = None
     ubicacion_via: Optional[str] = None
-    trabajos_via: Optional[List] = []
+    trabajos_via: Optional[List[str]] = []
     status: Optional[str] = "Activo"
 
 class IncidenteCreate(IncidenteBase):
     created_by_id: Optional[int] = None
-    created_by: Optional[str] = None
 
 class IncidenteUpdate(BaseModel):
     type: Optional[str] = None
@@ -69,32 +64,42 @@ class IncidenteUpdate(BaseModel):
     end_date: Optional[date] = None
     end_time: Optional[time] = None
     observacion: Optional[str] = None
-    pista: Optional[List] = None
+    pista: Optional[List[str]] = None
     senalizacion: Optional[str] = None
     ubicacion_via: Optional[str] = None
-    trabajos_via: Optional[List] = None
+    trabajos_via: Optional[List[str]] = None
     status: Optional[str] = None
     closed_at: Optional[datetime] = None
-    cerrado_por_id: Optional[int] = None
+    close_by_id: Optional[int] = None
 
-class IncidenteResponse(IncidenteBase):
+from pydantic import BaseModel
+from typing import Optional, List
+from datetime import datetime
+
+class IncidenteResponse(BaseModel):
     id: int
+    type: str
+    priority: str           # <-- agregar
+    status: str
+    observacion: Optional[str]
+    created_by_id: Optional[int]
+    close_by_id: Optional[int]
+    created_by_name: Optional[str] = None
+    closed_by_name: Optional[str] = None
+    pista: List = []
+    trabajos_via: List = []
     created_at: datetime
-    created_by: Optional[str] = None
-    created_by_id: Optional[int] = None
-    cerrado_por_id: Optional[int] = None
-    closed_at: Optional[datetime] = None
+    closed_at: Optional[datetime]
 
     class Config:
         orm_mode = True
 
 
-# ======================
-# VIDEOS
-# ======================
-from pydantic import BaseModel
-from datetime import datetime
 
+
+# =========================
+# VIDEOS
+# =========================
 class VideoBase(BaseModel):
     camera_id: int
     filename: str
