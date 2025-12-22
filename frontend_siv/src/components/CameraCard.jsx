@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 
 const BACKEND_URL = "http://127.0.0.1:8000";
 
@@ -11,49 +11,74 @@ const ALERT_COLORS = {
 
 const NORMAL_BORDER = "#555";
 
-const CameraCard = ({ camId, title, alertType, nivel, vehiculos, detenidos, asistencia, focused }) => {
+const CameraCard = ({ camId, title }) => {
+  const [data, setData] = useState({
+    nivel: "Baja",
+    nivel_color: "#16a34a",
+    vehiculos: 0,
+    detenidos: 0,
+    alertType: null,
+    asistencia: null,
+    conos_detectados: false,
+  });
+
   const [online, setOnline] = useState(true);
   const videoRef = useRef(null);
 
-  // Refresco de mini video (baja calidad)
-  useEffect(() => {
-    if (focused) return; // si está fullscreen no usar mini video
-    const interval = setInterval(() => {
-      if (videoRef.current) {
-        videoRef.current.src = `${BACKEND_URL}/api/cam/${camId}/stream?quality=low&_ts=${Date.now()}`;
-      }
-    }, 200); // refresco rápido
-    return () => clearInterval(interval);
-  }, [camId, focused]);
+  // Fetch del estado de la cámara
+  const fetchData = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/camera/${camId}/status_full`);
+      const json = await res.json();
 
-  // Verifica si la cámara está online
+      setOnline(json.status === "online");
+
+      let alertType = null;
+      if (json.asistencia_detectada) alertType = "asistencia";
+      else if (json.conos_detectados) alertType = "conos";
+      else if (json.alerta_vehiculo) alertType = "vehiculo";
+      else if (json.accidente_detectado) alertType = "accidente";
+
+      setData({
+        nivel: json.nivel,
+        nivel_color: json.nivel_color || "#16a34a",
+        vehiculos: json.vehiculos,
+        detenidos: json.detenidos,
+        asistencia: json.asistencia_nombre || null,
+        alertType,
+        conos_detectados: json.conos_detectados || false,
+      });
+    } catch (err) {
+      console.error(err);
+      setOnline(false);
+    }
+  };
+
+  // Polling del estado cada 10s
   useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/cam/${camId}/status_full`);
-        const json = await res.json();
-        setOnline(json.status === "online");
-      } catch (err) {
-        console.error(err);
-        setOnline(false);
-      }
-    };
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
+    fetchData();
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [camId]);
 
-  const borderColor = alertType ? ALERT_COLORS[alertType] : NORMAL_BORDER;
+  // 🔹 Forzar carga del stream al montar el componente
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.src = `${BACKEND_URL}/api/cam/${camId}/stream_low`; // mini video baja calidad
+    }
+  }, [camId]);
+
+  const borderColor = data.alertType ? ALERT_COLORS[data.alertType] : NORMAL_BORDER;
 
   const borderStyle = {
     border: online ? `4px solid ${borderColor}` : `2px solid ${NORMAL_BORDER}`,
     borderRadius: "20px",
-    boxShadow: alertType
+    boxShadow: data.alertType
       ? `0 8px 20px ${borderColor}55`
       : "0 6px 18px rgba(0,0,0,0.2)",
     transition: "all 0.3s ease",
     animation:
-      alertType && alertType !== "asistencia"
+      data.alertType && data.alertType !== "asistencia"
         ? "borderPulse 1.5s infinite alternate"
         : "none",
   };
@@ -65,23 +90,21 @@ const CameraCard = ({ camId, title, alertType, nivel, vehiculos, detenidos, asis
           <>
             <img
               ref={videoRef}
-              src={`${BACKEND_URL}/api/cam/${camId}/stream?quality=low&_ts=${Date.now()}`}
-              alt={title}
+              autoPlay
+              muted
+              playsInline
               className="stream"
             />
 
-            {/* Título sobre el video */}
-            <div className="camera-title">{asistencia || title}</div>
-
-            {/* Badges */}
+            <div className="camera-title">{data.asistencia ? data.asistencia : title}</div>
             <div className="live-badge">EN VIVO 🔴</div>
-            <div className="level-badge" style={{ background: nivel ? nivel.color : "#16a34a" }}>
-              🚦 {nivel || "Baja"}
+            <div className="level-badge" style={{ background: data.nivel_color }}>
+              🚦 {data.nivel}
             </div>
 
-            {alertType === "vehiculo" && detenidos > 0 && (
+            {data.alertType === "vehiculo" && data.detenidos > 0 && (
               <div className="alert-badge vehiculo-alert">
-                🚨 {detenidos} Vehiculo{detenidos > 1 ? "s" : ""} detenido{detenidos > 1 ? "s" : ""}
+                🚨 {data.detenidos} Vehiculo{data.detenidos > 1 ? "s" : ""} detenido
               </div>
             )}
           </>
@@ -89,6 +112,8 @@ const CameraCard = ({ camId, title, alertType, nivel, vehiculos, detenidos, asis
           <div className="offline">OFFLINE ❌</div>
         )}
       </div>
+
+      {/* Aquí se mantienen todos los estilos originales */}
 
       <style>{`
         .camera-card {
@@ -175,24 +200,21 @@ const CameraCard = ({ camId, title, alertType, nivel, vehiculos, detenidos, asis
           transition: all 0.3s ease;
         }
 
-        .alert-badge {
-          position: absolute;
-          bottom: 10px;
-          left: 50%;
-          transform: translateX(-50%);
-          padding: 0.5em 1em;
-          font-size: 0.85rem;
-          font-weight: 800;
-          color: #fff;
-          border-radius: 16px;
-          background: linear-gradient(135deg, #dc2626, #f87171, #ef4444);
-          text-shadow: 0 0 3px rgba(255,255,255,0.8);
-          box-shadow: 0 0 8px #dc2626aa, 0 0 14px #ef4444aa, 0 0 20px #f87171aa;
-          animation: glowPulse 1.2s infinite alternate;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
+@keyframes glowPulse {
+  0% {
+    box-shadow: 0 0 8px #dc2626aa, 0 0 14px #ef4444aa, 0 0 20px #f87171aa;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    box-shadow: 0 0 12px #dc2626cc, 0 0 18px #ef4444cc, 0 0 24px #f87171cc;
+    transform: translateX(-50%) scale(1.05);
+  }
+  100% {
+    box-shadow: 0 0 8px #dc2626aa, 0 0 14px #ef4444aa, 0 0 20px #f87171aa;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
 
         @keyframes pulse {
           0% { transform: translateY(0px) scale(1); opacity: 0.85; }

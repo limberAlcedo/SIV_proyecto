@@ -3,7 +3,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #0f172a, #1e3a8a, #3b82f6, #2563eb);
+  background: linear-gradient(135deg, #0f172a, #1e3a8a, #133d80, #2563eb);
   background-size: 600% 600%;
   animation: gradientShift 20s ease infinite;
   font-family: 'Poppins', sans-serif;

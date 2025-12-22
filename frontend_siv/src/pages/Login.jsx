@@ -173,24 +173,15 @@ export default function Login({ onLogin }) {
               </motion.div>
             )}
           </AnimatePresence>
+{/* BOTÓN LOGIN */}
+<Button type="submit" className="button-custom w-100" disabled={loading}>
+  {loading ? "Ingresando..." : "Ingresar"}
+</Button>
 
-          {/* BOTÓN LOGIN */}
-          <Button type="submit" className="button-custom w-100" disabled={loading}>
-            {loading ? "Ingresando..." : "Ingresar"}
-          </Button>
+</Form>
 
-          {/* CREAR USUARIO */}
-          <Button
-            variant="outline-primary"
-            className="w-100 mt-3"
-            onClick={() => navigate("/crear-usuario")}
-          >
-            <UserPlus size={16} /> Crear usuario
-          </Button>
-        </Form>
-
-        <p className="footer-text">© {new Date().getFullYear()} SIV</p>
-      </motion.div>
-    </Container>
-  );
+<p className="footer-text">© {new Date().getFullYear()} SIV</p>
+</motion.div>
+</Container>
+);
 }

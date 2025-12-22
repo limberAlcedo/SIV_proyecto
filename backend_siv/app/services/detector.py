@@ -6,6 +6,7 @@ from collections import defaultdict
 from ultralytics import YOLO
 import os
 import atexit
+import numpy as np
 
 from app.core.config import (
     VIDEO_PATHS, MODEL_PATH, CLASS_COLORS, DEFAULT_COLOR,
@@ -35,12 +36,13 @@ stop_flags = {cid: False for cid in VIDEO_PATHS}  # bandera para detener threads
 # ===============================
 # PARÁMETROS DE CONFIRMACIÓN
 # ===============================
-STOP_CONFIRM_FRAMES = 8
+STOP_CONFIRM_FRAMES = 12  # aumentamos de 8 a 12 para mayor robustez
 MOVE_CONFIRM_FRAMES = 5
 
 CONES_CONFIRM_FRAMES = 10
 ASSIST_CONFIRM_FRAMES = 10
 ASSIST_WINDOW_SEC = 6
+MAX_TRAIL = 15  # longitud de la estela de vehículos
 
 # ===============================
 # ESTADOS GLOBALES
@@ -126,7 +128,7 @@ def draw_label(frame, box, label, color, confidence=None, alert=False, hide_conf
     )
 
 # ===============================
-# DETECCIÓN DE DETENIDOS
+# DETECCIÓN DE DETENIDOS + ESTELA
 # ===============================
 def update_stopped_vehicles(cam_id, current_ids):
     nuevos_detenidos = set()
@@ -155,6 +157,13 @@ def update_stopped_vehicles(cam_id, current_ids):
                     vehicle_states[cam_id][tid] = "MOVING"
 
     stopped_vehicles[cam_id] = nuevos_detenidos
+
+def draw_trails(frame, cam_id):
+    for tid, history in track_histories[cam_id].items():
+        color = (0, 255, 255)  # color de la estela
+        points = history[-MAX_TRAIL:]
+        for i in range(1, len(points)):
+            cv2.line(frame, points[i-1], points[i], color, 2)
 
 # ===============================
 # CAPTURA DE VIDEO
@@ -255,6 +264,7 @@ def process_frames(cam_id, fps):
                     draw_label(annotated, box, label_text, base_color, confidence=conf, hide_confidence=hide_conf)
 
         update_stopped_vehicles(cam_id, current_ids)
+        draw_trails(annotated, cam_id)  # dibujar estelas
 
         # Limpiar tracks de IDs no presentes
         for tid in list(vehicle_states[cam_id].keys()):
@@ -281,19 +291,41 @@ def process_frames(cam_id, fps):
             processed_queues[cam_id].put(jpg.tobytes())
 
 # ===============================
-# STREAM
+# STREAM (LOW / HIGH QUALITY)
 # ===============================
-def generate_frames(cam_id):
+def generate_frames(cam_id: int, low: bool = False):
+    """
+    low = True  -> mini video (baja calidad / rápido)
+    low = False -> fullscreen (calidad normal)
+    """
+
     while True:
         frame = processed_queues[cam_id].get()
+
+        if low:
+            # MINI VIDEO
+            img = cv2.imdecode(
+                np.frombuffer(frame, np.uint8),
+                cv2.IMREAD_COLOR
+            )
+            img = cv2.resize(img, (640, 360))
+            _, buffer = cv2.imencode(
+                ".jpg",
+                img,
+                [cv2.IMWRITE_JPEG_QUALITY, 45]
+            )
+            data = buffer.tobytes()
+        else:
+            # FULLSCREEN (tal cual lo tenías)
+            data = frame
+
         yield (
             b"--frame\r\n"
             b"Content-Type: image/jpeg\r\n\r\n" +
-            frame +
+            data +
             b"\r\n"
         )
 
-# ===============================
 # INICIAR Y DETENER CAMARAS
 # ===============================
 def start_camera(cam_id):

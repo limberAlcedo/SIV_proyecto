@@ -7,7 +7,6 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import IncidenteForm from "./IncidenteForm";
 
-// ==================== CONSTANTES ====================
 const API_URL = "http://127.0.0.1:8000/api/incidentes";
 const USERS_API = "http://127.0.0.1:8000/api/users/";
 
@@ -22,13 +21,19 @@ const glassCard = {
 const PRIORITY_COLORS = { Alta: "#ef4444", Media: "#facc15", Baja: "#22c55e" };
 const PRIORITY_BORDER = { Alta: 6, Media: 4, Baja: 2 };
 
-// ==================== COMPONENTE PRINCIPAL ====================
 export default function IncidentesKanban({ currentUser = { id: 1, username: "Juan", role: "supervisor", token: "" } }) {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editIncident, setEditIncident] = useState(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [filter, setFilter] = useState({ status: "", priority: "", from: "", to: "" });
+  const [filter, setFilter] = useState({
+    status: "",
+    priority: "",
+    fromDate: "",
+    fromTime: "00:00",
+    toDate: "",
+    toTime: "23:59"
+  });
 
   const getToken = () => currentUser.token || localStorage.getItem("token");
 
@@ -77,17 +82,29 @@ export default function IncidentesKanban({ currentUser = { id: 1, username: "Jua
   const handleEdit = incident => { setEditIncident(incident); setIsFormOpen(true); };
   const clearEdit = () => { setEditIncident(null); setIsFormOpen(false); };
 
-  // ---------- INCIDENTES VISIBLES SEGÚN ROL ----------
-  const visibleIncidents = useMemo(() => {
-    if (["supervisor", "administrador"].includes(currentUser.role)) return incidents;
-    return incidents.filter(i => i.status === "Activo" || (i.status === "Cerrado" && Number(i.close_by_id) === Number(currentUser.id)));
-  }, [incidents, currentUser]);
+  // ---------- INCIDENTES VISIBLES ----------
+  const visibleIncidents = useMemo(() => incidents, [incidents]);
+
+  // ---------- FUNCIÓN PARA FORMATEAR FECHA LOCAL ----------
+  const formatDateTimeLocal = dtStr => {
+    if (!dtStr) return "No disponible";
+    const d = new Date(dtStr); // UTC → hora local
+    return d.toLocaleString("es-CL", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  };
 
   // ---------- FILTROS ----------
   const filtered = visibleIncidents.filter(i => {
     const createdAt = new Date(i.created_at);
-    const from = filter.from ? new Date(filter.from + "T00:00:00") : null;
-    const to = filter.to ? new Date(filter.to + "T23:59:59") : null;
+
+    const from = filter.fromDate ? new Date(`${filter.fromDate}T${filter.fromTime}:00`) : null;
+    const to = filter.toDate ? new Date(`${filter.toDate}T${filter.toTime}:59`) : null;
 
     const matchesStatus = !filter.status || i.status === filter.status;
     const matchesPriority = !filter.priority || i.priority === filter.priority;
@@ -121,10 +138,12 @@ export default function IncidentesKanban({ currentUser = { id: 1, username: "Jua
           <option value="Baja">Baja</option>
         </motion.select>
 
-        <motion.input type="date" style={styles.filterInput} value={filter.from} onChange={e => setFilter(prev => ({ ...prev, from: e.target.value }))} />
-        <motion.input type="date" style={styles.filterInput} value={filter.to} onChange={e => setFilter(prev => ({ ...prev, to: e.target.value }))} />
+        <motion.input type="date" style={styles.filterInput} value={filter.fromDate} onChange={e => setFilter(prev => ({ ...prev, fromDate: e.target.value }))} />
+        <motion.input type="time" style={styles.filterInput} value={filter.fromTime} onChange={e => setFilter(prev => ({ ...prev, fromTime: e.target.value }))} />
+        <motion.input type="date" style={styles.filterInput} value={filter.toDate} onChange={e => setFilter(prev => ({ ...prev, toDate: e.target.value }))} />
+        <motion.input type="time" style={styles.filterInput} value={filter.toTime} onChange={e => setFilter(prev => ({ ...prev, toTime: e.target.value }))} />
 
-        <motion.button style={styles.clearBtn} onClick={() => setFilter({ status: "", priority: "", from: "", to: "" })} whileHover={{ boxShadow: "0 0 12px #ef4444" }}>
+        <motion.button style={styles.clearBtn} onClick={() => setFilter({ status: "", priority: "", fromDate: "", fromTime: "00:00", toDate: "", toTime: "23:59" })} whileHover={{ boxShadow: "0 0 12px #ef4444" }}>
           Limpiar
         </motion.button>
 
@@ -140,7 +159,7 @@ export default function IncidentesKanban({ currentUser = { id: 1, username: "Jua
         <p style={styles.message}>📭 No hay incidentes con esos filtros</p>
       ) : (
         <div style={styles.grid}>
-          {filtered.map(i => <IncidentCard key={i.id} incident={i} onEdit={handleEdit} />)}
+          {filtered.map(i => <IncidentCard key={i.id} incident={i} formatDateTimeLocal={formatDateTimeLocal} onEdit={handleEdit} />)}
         </div>
       )}
 
@@ -157,7 +176,7 @@ export default function IncidentesKanban({ currentUser = { id: 1, username: "Jua
 }
 
 // ---------- COMPONENTE INCIDENT CARD ----------
-function IncidentCard({ incident, onEdit }) {
+function IncidentCard({ incident, onEdit, formatDateTimeLocal }) {
   const statusColor = incident.status === "Activo" ? "#22c55e" : "#ef4444";
   const priorityColor = PRIORITY_COLORS[incident.priority] || "#ccc";
   const borderWidth = PRIORITY_BORDER[incident.priority] || 2;
@@ -173,8 +192,8 @@ function IncidentCard({ incident, onEdit }) {
         <span style={{ ...styles.badge, background: statusColor, boxShadow: `0 0 8px ${statusColor}` }}>{incident.status}</span>
       </div>
 
-      <div style={styles.meta}>🕒 {new Date(incident.created_at).toLocaleTimeString()}</div>
-      <div style={styles.meta}>📅 {new Date(incident.created_at).toLocaleDateString()}</div>
+      <div style={styles.meta}>🕒 Creado: {formatDateTimeLocal(incident.created_at)}</div>
+      {incident.closed_at && <div style={styles.meta}>🔒 Cerrado: {formatDateTimeLocal(incident.closed_at)}</div>}
 
       <div style={styles.obs} title={incident.observacion || "Sin observaciones"}>
         {incident.observacion || "Sin observaciones"}
@@ -197,121 +216,22 @@ function IncidentCard({ incident, onEdit }) {
     </motion.div>
   );
 }
+
 // ---------- STYLES ===========
 const styles = {
-  page: {
-    minHeight: "100vh",
-    padding: "16px",
-    background: "linear-gradient(135deg,#0f172a,#1a3776,#0a3098)",
-    color: "#fff",
-    fontFamily: "Inter, sans-serif",
-  },
-  title: {
-    textAlign: "center",
-    marginBottom: "16px",
-    fontWeight: 800,
-    fontSize: "2rem",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", // responsive
-    gap: "12px",
-    justifyContent: "center",
-    width: "100%",
-    maxWidth: "1300px",
-    margin: "0 auto",
-  },
-  card: {
-    borderRadius: "12px",
-    padding: "16px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "space-between",
-    transition: "all 0.2s",
-  },
-  cardHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "10px",
-    fontSize: "1rem",
-  },
-  badge: {
-    fontSize: ".8rem",
-    padding: "5px 10px",
-    borderRadius: "999px",
-    fontWeight: 700,
-    color: "#fff",
-  },
+  page: { minHeight: "100vh", padding: "16px", background: "linear-gradient(135deg,#0f172a,#1a3776,#0a3098)", color: "#fff", fontFamily: "Inter, sans-serif" },
+  title: { textAlign: "center", marginBottom: "16px", fontWeight: 800, fontSize: "2rem" },
+  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", justifyContent: "center", width: "100%", maxWidth: "1300px", margin: "0 auto" },
+  card: { borderRadius: "12px", padding: "16px", boxShadow: "0 4px 12px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", justifyContent: "space-between", transition: "all 0.2s" },
+  cardHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", fontSize: "1rem" },
+  badge: { fontSize: ".8rem", padding: "5px 10px", borderRadius: "999px", fontWeight: 700, color: "#fff" },
   meta: { fontSize: ".85rem", opacity: 0.85, marginBottom: "6px" },
-  obs: {
-    fontSize: ".85rem",
-    background: "rgba(255,255,255,.1)",
-    padding: "10px",
-    borderRadius: "6px",
-    marginBottom: "12px",
-    minHeight: "40px",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
+  obs: { fontSize: ".85rem", background: "rgba(255,255,255,.1)", padding: "10px", borderRadius: "6px", marginBottom: "12px", minHeight: "40px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   users: { fontSize: ".8rem", opacity: 0.9, marginBottom: "10px", lineHeight: 1.4 },
-  editBtn: {
-    marginTop: "8px",
-    background: "#facc15",
-    border: "none",
-    borderRadius: "6px",
-    padding: "8px 14px",
-    cursor: "pointer",
-    fontWeight: 600,
-    color: "#000",
-    transition: "all 0.2s",
-    fontSize: ".8rem",
-  },
+  editBtn: { marginTop: "8px", background: "#facc15", border: "none", borderRadius: "6px", padding: "8px 14px", cursor: "pointer", fontWeight: 600, color: "#000", transition: "all 0.2s", fontSize: ".8rem" },
   message: { textAlign: "center", fontSize: "1rem", padding: "16px 0", opacity: 0.85 },
-  filterSelect: {
-    padding: "12px 16px",
-    borderRadius: "10px",
-    border: "1px solid rgba(255,255,255,0.3)",
-    background: "rgba(255,255,255,0.12)",
-    color: "#fff",
-    fontWeight: 500,
-    cursor: "pointer",
-    transition: "all 0.3s",
-    outline: "none",
-  },
-  filterInput: {
-    padding: "12px 16px",
-    borderRadius: "10px",
-    border: "1px solid rgba(255,255,255,0.3)",
-    background: "rgba(255,255,255,0.12)",
-    color: "#fff",
-    fontWeight: 500,
-    cursor: "pointer",
-    transition: "all 0.3s",
-    outline: "none",
-  },
-  clearBtn: {
-    background: "#ef4444",
-    border: "none",
-    borderRadius: "10px",
-    padding: "12px 18px",
-    cursor: "pointer",
-    color: "#fff",
-    fontWeight: 600,
-    transition: "all 0.3s",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-  },
-  createBtn: {
-    background: "#22c55e",
-    border: "none",
-    borderRadius: "10px",
-    padding: "12px 18px",
-    cursor: "pointer",
-    color: "#fff",
-    fontWeight: 700,
-    transition: "all 0.3s",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-  },
+  filterSelect: { padding: "12px 16px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.12)", color: "#fff", fontWeight: 500, cursor: "pointer", transition: "all 0.3s", outline: "none" },
+  filterInput: { padding: "12px 16px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.12)", color: "#fff", fontWeight: 500, cursor: "pointer", transition: "all 0.3s", outline: "none" },
+  clearBtn: { background: "#ef4444", border: "none", borderRadius: "10px", padding: "12px 18px", cursor: "pointer", color: "#fff", fontWeight: 600, transition: "all 0.3s", boxShadow: "0 4px 12px rgba(0,0,0,0.2)" },
+  createBtn: { background: "#22c55e", border: "none", borderRadius: "10px", padding: "12px 18px", cursor: "pointer", color: "#fff", fontWeight: 700, transition: "all 0.3s", boxShadow: "0 4px 12px rgba(0,0,0,0.25)" },
 };

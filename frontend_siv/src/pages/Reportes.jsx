@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
-  Container, Row, Col, Card, Spinner, Table, Form, Button, Badge, Pagination
+  Container, Row, Col, Card, Spinner, Table, Form, Button, Badge, Pagination, Modal
 } from "react-bootstrap";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -40,6 +40,21 @@ const STATUS_GRADIENTS = {
 const PRIORITY_COLORS = { Alta:"#ef4444", Media:"#facc15", Baja:"#10b981" };
 const CREATED_COLOR = "#38bdf8";
 
+/* ================= HELPER FECHAS ================= */
+const formatChileDate = (d, customDate=null) => {
+  const date = customDate ? new Date(customDate) : new Date(d);
+  return new Intl.DateTimeFormat("es-CL", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: "America/Santiago"
+  }).format(date);
+};
+
 /* ================= COMPONENTE ================= */
 export default function Reportes() {
   const [incidents, setIncidents] = useState([]);
@@ -50,11 +65,24 @@ export default function Reportes() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
-  const ITEMS_PER_PAGE = 10; // tabla ahora muestra 10
-
+  const ITEMS_PER_PAGE = 10;
   const [trendRange, setTrendRange] = useState("today");
 
   const TOKEN = localStorage.getItem("token");
+
+  /* ================= MODAL EDIT ================= */
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [incidentToEdit, setIncidentToEdit] = useState(null);
+
+  const handleEditIncident = (incident) => {
+    setIncidentToEdit(incident);
+    setShowEditModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setIncidentToEdit(null);
+    setShowEditModal(false);
+  };
 
   /* ================= FETCH ================= */
   const fetchData = useCallback(async () => {
@@ -92,12 +120,22 @@ export default function Reportes() {
   }, [usuarios]);
 
   const getUsername = id => userMap.get(id) || "—";
-  const formatDate = d => d ? new Date(d).toLocaleString() : "—";
 
   const currentMonth = useMemo(() => {
     const monthNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
     return monthNames[new Date().getMonth()];
   }, []);
+
+  /* ================= KPI CREADOS MES ================= */
+  const totalCreadosMes = useMemo(() => {
+    const today = new Date();
+    const mesActual = today.getMonth();
+    const anioActual = today.getFullYear();
+    return incidents.filter(i => {
+      const fecha = new Date(i.created_at);
+      return fecha.getMonth() === mesActual && fecha.getFullYear() === anioActual;
+    }).length;
+  }, [incidents]);
 
   /* ================= FILTROS ================= */
   const filteredIncidents = useMemo(() =>
@@ -115,8 +153,6 @@ export default function Reportes() {
   const paginated = filteredIncidents.slice((page-1)*ITEMS_PER_PAGE, page*ITEMS_PER_PAGE);
 
   /* ================= KPIs/GRÁFICOS ================= */
-  const totalCreados = incidents.length;
-
   const priorityCounts = useMemo(() => ["Alta","Media","Baja"].map(p => ({
     name: p,
     value: incidents.filter(i => i.priority === p).length
@@ -161,6 +197,8 @@ export default function Reportes() {
     return data.length ? data : [{ date: today.toLocaleDateString(), total:0, avgHours:0 }];
   }, [incidents, trendRange]);
 
+
+
   /* ================= PDF ================= */
   const exportPDF = () => {
     const doc = new jsPDF();
@@ -170,7 +208,7 @@ export default function Reportes() {
       startY: 28,
       head: [["Tipo","Usuario","Prioridad","Estado","Fecha Abierto","Fecha Cerrado"]],
       body: filteredIncidents.map(i=>[
-        i.type, getUsername(i.created_by_id), i.priority, i.status, formatDate(i.created_at), formatDate(i.closed_at)
+        i.type, getUsername(i.created_by_id), i.priority, i.status, formatChileDate(i.created_at), formatChileDate(i.closed_at, i.custom_closed_at)
       ]),
       styles: { fontSize: 8 }
     });
@@ -185,118 +223,6 @@ export default function Reportes() {
         <motion.h2 className="text-center text-warning mb-4" initial={{opacity:0,y:-10}} animate={{opacity:1,y:0}}>
           📊 Reportes de Incidentes
         </motion.h2>
-
-        {/* ==================== GRÁFICOS COMPACTOS ==================== */}
-        <Row className="g-3 mb-3">
-          {/* KPI Creados (Número) */}
-          <Col xs={12} md={3}>
-            <Card style={glassCard}>
-              <Card.Body className="d-flex flex-column justify-content-center align-items-center">
-                <h6>Creados</h6>
-<span style={{ fontSize: "3rem", fontWeight: "700", color: CREATED_COLOR }}>{totalCreados}</span>
-<span style={{ fontSize: "3rem", fontWeight: "700", color: "#fff", marginTop: "0.7rem" }}>{currentMonth}</span>
-
-              </Card.Body>
-            </Card>
-          </Col>
-
-          {/* Prioridad */}
-          <Col xs={12} md={3}>
-            <Card style={glassCard}>
-              <Card.Body>
-                <h6 className="text-center mb-1">Por Prioridad</h6>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie data={priorityCounts} dataKey="value" innerRadius={30} outerRadius={60} label={({percent,name})=>`${name}: ${(percent*100).toFixed(0)}%`}>
-                      {priorityCounts.map((e,i)=> <Cell key={i} fill={PRIORITY_COLORS[e.name]}/>)}
-                    </Pie>
-                    <Tooltip formatter={v=>[v,"Incidentes"]}/>
-                  </PieChart>
-                </ResponsiveContainer>
-              </Card.Body>
-            </Card>
-          </Col>
-
-          {/* Estado */}
-          <Col xs={12} md={3}>
-            <Card style={glassCard}>
-              <Card.Body>
-                <h6 className="text-center mb-1">Por Estado</h6>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie data={statusCounts} dataKey="value" innerRadius={30} outerRadius={60} label>
-                      {statusCounts.map((e,i)=> <Cell key={i} fill={{Abierto:"#22c55e", Cerrado:"#ef4444"}[e.name]}/>)}
-                    </Pie>
-                    <Tooltip formatter={v=>[v,"Incidentes"]}/>
-                  </PieChart>
-                </ResponsiveContainer>
-              </Card.Body>
-            </Card>
-          </Col>
-
-          {/* Top Usuarios */}
-          <Col xs={12} md={3}>
-            <Card style={glassCard}>
-              <Card.Body>
-                <h6 className="text-center mb-1">Top Usuarios</h6>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart
-                    layout="vertical"
-                    data={topUsersData}
-                    margin={{ top: 0, right: 20, left: 20, bottom: 0 }}
-                  >
-                    <XAxis type="number" hide />
-                    <YAxis
-                      dataKey="name"
-                      type="category"
-                      tick={{ fill: "#fff", fontSize: 12 }}
-                      width={80}
-                    />
-                    <Bar dataKey="value" fill="#38bdf8" radius={[5,5,5,5]}>
-                      <LabelList
-                        dataKey="value"
-                        position="inside"
-                        fill="#fff"
-                        fontSize={12}
-                        formatter={v => v}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-
-
-
-
-        {/* ==================== Gráfico Tendencia ==================== */}
-        <Card style={glassCard} className="mb-4">
-          <Card.Body>
-            <Row className="mb-2 align-items-center">
-              <Col><h6 className="text-center">Tiempo de Respuesta vs Incidentes Cerrados</h6></Col>
-              <Col xs="auto">
-                <Form.Select size="sm" value={trendRange} onChange={e=>setTrendRange(e.target.value)}>
-                  <option value="today">Hoy</option>
-                  <option value="week">Últimos 7 días</option>
-                  <option value="month">Mes actual</option>
-                </Form.Select>
-              </Col>
-            </Row>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={trendData} margin={{ top: 20, right: 40, left: 10, bottom: 5 }}>
-                <XAxis dataKey="date" tick={{ fill: "#fff" }} />
-                <YAxis yAxisId="left" tick={{ fill: "#fff" }} label={{ value: "Horas", angle: -90, position: "insideLeft", fill:"#facc15" }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fill: "#fff" }} label={{ value: "Cerrados", angle: 90, position: "insideRight", fill:"#38bdf8" }} />
-                <Tooltip formatter={(v, n) => n === "avgHours" ? [`${v.toFixed(2)} h`, "Tiempo promedio"] : [v, "Cerrados"]} />
-                <Legend />
-                <Line yAxisId="left" type="monotone" dataKey="avgHours" name="Tiempo promedio" stroke="#facc15" strokeWidth={3} dot={{ r: 5 }} />
-                <Line yAxisId="right" type="monotone" dataKey="total" name="Incidentes cerrados" stroke="#38bdf8" strokeWidth={3} dot={{ r: 5 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </Card.Body>
-        </Card>
 
         {/* ==================== FILTROS ==================== */}
         <Card style={{...glassCard, padding:"8px 16px"}} className="mb-4">
@@ -320,22 +246,21 @@ export default function Reportes() {
                   <th>Estado</th>
                   <th>Fecha Abierto</th>
                   <th>Fecha Cerrado</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {paginated.map((i,index)=>(
-                  <motion.tr
-                    key={i.id}
-                    initial={{ opacity:0, y:15 }}
-                    animate={{ opacity:1, y:0 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
+                {filteredIncidents.slice((page-1)*ITEMS_PER_PAGE, page*ITEMS_PER_PAGE).map((i,index)=>(
+                  <motion.tr key={i.id} initial={{ opacity:0, y:15 }} animate={{ opacity:1, y:0 }} transition={{ delay: index*0.05 }}>
                     <td>{i.type}</td>
                     <td>{getUsername(i.created_by_id)}</td>
                     <td><Badge pill style={{ background: PRIORITY_GRADIENTS[i.priority], color:"#fff", fontWeight:600, padding:"0.4em 0.8em" }}>{i.priority}</Badge></td>
                     <td><Badge pill style={{ background: STATUS_GRADIENTS[i.status], color:"#fff", fontWeight:600, padding:"0.4em 0.8em" }}>{i.status}</Badge></td>
-                    <td>{formatDate(i.created_at)}</td>
-                    <td>{formatDate(i.closed_at)}</td>
+                    <td>{formatChileDate(i.created_at)}</td>
+                    <td>{formatChileDate(i.closed_at, i.custom_closed_at)}</td>
+                    <td>
+                      <Button size="sm" variant="warning" className="ms-2" onClick={() => handleEditIncident(i)}>Editar</Button>
+                    </td>
                   </motion.tr>
                 ))}
               </tbody>
@@ -355,6 +280,65 @@ export default function Reportes() {
             <Pagination.Last onClick={()=>setPage(totalPages)} disabled={page===totalPages}/>
           </Pagination>
         )}
+
+        {/* ==================== MODAL MINI FORM ==================== */}
+        <Modal show={showEditModal} onHide={handleCloseModal} size="lg" centered>
+          <Modal.Header closeButton>
+            <Modal.Title>Editar Incidente</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {incidentToEdit ? (
+              <Form onSubmit={(e)=>{
+                e.preventDefault();
+                const updated = {
+                  type: e.target.type.value,
+                  priority: e.target.priority.value,
+                  status: e.target.status.value
+                };
+                fetch(`${API_URL}/${incidentToEdit.id}`, {
+                  method: "PUT",
+                  headers: { 
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${TOKEN}`
+                  },
+                  body: JSON.stringify(updated)
+                })
+                .then(res => res.json())
+                .then(()=> {
+                  toast.success("✅ Incidente actualizado");
+                  fetchData();
+                  handleCloseModal();
+                })
+                .catch(()=> toast.error("❌ Error al actualizar"));
+              }}>
+                <Form.Group className="mb-2">
+                  <Form.Label>Tipo</Form.Label>
+                  <Form.Control name="type" defaultValue={incidentToEdit.type} />
+                </Form.Group>
+                <Form.Group className="mb-2">
+                  <Form.Label>Prioridad</Form.Label>
+                  <Form.Select name="priority" defaultValue={incidentToEdit.priority}>
+                    <option>Alta</option>
+                    <option>Media</option>
+                    <option>Baja</option>
+                  </Form.Select>
+                </Form.Group>
+                <Form.Group className="mb-2">
+                  <Form.Label>Estado</Form.Label>
+                  <Form.Select name="status" defaultValue={incidentToEdit.status}>
+                    <option>Abierto</option>
+                    <option>Cerrado</option>
+                  </Form.Select>
+                </Form.Group>
+                <div className="d-flex justify-content-end mt-3">
+                  <Button variant="secondary" className="me-2" onClick={handleCloseModal}>Cancelar</Button>
+                  <Button type="submit" variant="primary">Guardar</Button>
+                </div>
+              </Form>
+            ) : <div className="text-center py-5">Cargando...</div>}
+          </Modal.Body>
+        </Modal>
+
       </div>
     </Container>
   );

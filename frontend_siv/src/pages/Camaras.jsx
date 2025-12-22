@@ -24,6 +24,9 @@ export default function Camaras() {
   const [activeCameras, setActiveCameras] = useState(0);
   const [focusedCam, setFocusedCam] = useState(null);
   const [cameraStatus, setCameraStatus] = useState({});
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
   const videoRef = useRef(null);
 
   const cameras = [
@@ -51,14 +54,10 @@ export default function Camaras() {
       await Promise.all(
         cameras.map(async (cam) => {
           try {
-            const res = await fetch(`${BACKEND_URL}/api/cam/${cam.id}/status_full`);
+            const res = await fetch(`${BACKEND_URL}/api/camera/${cam.id}/status_full`);
             const json = await res.json();
 
-            let alertType = null;
-            if (json.asistencia_detectada) alertType = "asistencia";
-            else if (json.conos_detectados) alertType = "conos";
-            else if (json.alerta_vehiculo) alertType = "vehiculo";
-            else if (json.accidente_detectado) alertType = "accidente";
+            const alertType = json.detenidos > 0 ? "vehiculo" : null;
 
             statusMap[cam.id] = {
               status: json.status,
@@ -66,12 +65,12 @@ export default function Camaras() {
               nivel: json.nivel,
               vehiculos: json.vehiculos,
               detenidos: json.detenidos,
-              asistencia: json.asistencia_nombre || null,
+              asistencia: json.asistencia_detectada || false,
             };
 
             if (json.status === "online") {
               onlineCount++;
-              if (alertType && alertType !== "asistencia") totalAlerts++;
+              if (alertType) totalAlerts++;
             }
           } catch (err) {
             console.error(err);
@@ -98,7 +97,7 @@ export default function Camaras() {
       await Promise.all(
         cameras.map(async (cam) => {
           try {
-            const res = await fetch(`${BACKEND_URL}/api/cam/${cam.id}/status_full`);
+            const res = await fetch(`${BACKEND_URL}/api/camera/${cam.id}/status_full`);
             const json = await res.json();
             if (json.status === "online") {
               onlineCount++;
@@ -115,20 +114,20 @@ export default function Camaras() {
     };
 
     fetchFlow();
-    const interval = setInterval(fetchFlow, 300000); // 5 min
+    const interval = setInterval(fetchFlow, 800000); // 5 min
     return () => clearInterval(interval);
   }, [cameras]);
 
   // 🚨 Iniciar YOLO al entrar a la página y detener al salir
   useEffect(() => {
     cameras.forEach((cam) => {
-      fetch(`${BACKEND_URL}/api/cam/${cam.id}/start`, { method: "POST" })
+      fetch(`${BACKEND_URL}/api/camara/${cam.id}/start`, { method: "POST" })
         .catch(err => console.error("Error al iniciar cámara:", err));
     });
 
     return () => {
       cameras.forEach((cam) => {
-        fetch(`${BACKEND_URL}/api/cam/${cam.id}/stop`, { method: "POST" })
+        fetch(`${BACKEND_URL}/api/camara/${cam.id}/stop`, { method: "POST" })
           .catch(err => console.error("Error al detener cámara:", err));
       });
     };
@@ -187,12 +186,12 @@ export default function Camaras() {
                 <CameraCard
                   title={cam.title}
                   camId={cam.id}
+                  alertColor={ALERT_COLORS[cameraStatus[cam.id]?.alertType]}
                   alertType={cameraStatus[cam.id]?.alertType}
                   nivel={cameraStatus[cam.id]?.nivel}
                   vehiculos={cameraStatus[cam.id]?.vehiculos}
                   detenidos={cameraStatus[cam.id]?.detenidos}
                   asistencia={cameraStatus[cam.id]?.asistencia}
-                  focused={false} // mini video
                 />
               </motion.div>
             </Col>
@@ -209,10 +208,9 @@ export default function Camaras() {
             exit={{ scale: 0.8 }}
             transition={{ duration: 0.3 }}
           >
-            {/* Fullscreen video de buena calidad */}
             <img
               ref={videoRef}
-              src={`${BACKEND_URL}/api/cam/${focusedCam.id}/stream?quality=high&_ts=${Date.now()}`}
+              src={`${BACKEND_URL}/api/cam/${focusedCam.id}/stream`}
               className="fullscreen-img"
               alt={focusedCam.title}
             />

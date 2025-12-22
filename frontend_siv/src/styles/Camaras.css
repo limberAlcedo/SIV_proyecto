@@ -1,3 +1,7 @@
+/* =========================
+   GLOBAL
+========================= */
+
 body, .camara-page {
   background: linear-gradient(135deg, #0f172a, #1a3776ff, #0a3098ff);
   font-family: 'Poppins', sans-serif;
@@ -6,10 +10,21 @@ body, .camara-page {
   overflow-x: hidden;
 }
 
+/* =========================
+   BLUR CUANDO HAY FULLSCREEN
+========================= */
+
 .blurred-grid {
   filter: blur(6px);
+}
+
+.blurred-grid * {
   pointer-events: none;
 }
+
+/* =========================
+   FULLSCREEN VIDEO
+========================= */
 
 .fullscreen-wrapper {
   position: fixed;
@@ -58,9 +73,14 @@ body, .camara-page {
   cursor: pointer;
   transition: transform 0.2s ease;
 }
+
 .close-btn:hover {
   transform: scale(1.2);
 }
+
+/* =========================
+   BOTONES / ACCIONES
+========================= */
 
 .action-buttons {
   position: absolute;
@@ -70,6 +90,10 @@ body, .camara-page {
   flex-wrap: wrap;
   gap: 10px;
 }
+
+/* =========================
+   KPI CARDS
+========================= */
 
 .kpi-card {
   box-shadow: 0 10px 25px rgba(0,0,0,0.3);
@@ -83,6 +107,10 @@ body, .camara-page {
   border-radius: 12px;
 }
 
+/* =========================
+   ALERTAS DE CAMARA
+========================= */
+
 .camera-alert {
   border: 3px solid;
   border-radius: 16px;
@@ -91,7 +119,33 @@ body, .camara-page {
   box-sizing: border-box;
 }
 
-/* RESPONSIVE */
+/* =========================
+   MINI STREAM
+========================= */
+
+.stream-container {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  height: 235px; /* 16:9 aprox */
+  background: black;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.stream {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  background: black;
+  pointer-events: none;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
 @media (max-width: 1024px) {
   .fullscreen-content {
     width: 95%;
@@ -135,4 +189,15 @@ body, .camara-page {
   .camera-alert {
     padding: 0.25rem;
   }
+}
+
+/* =========================
+   STREAM PERFORMANCE PRO
+========================= */
+
+.fullscreen-img {
+  will-change: contents;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  image-rendering: auto;
 }

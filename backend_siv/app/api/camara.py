@@ -42,10 +42,19 @@ def stop_camera_endpoint(cam_id: int):
     stop_camera(cam_id)  # Detiene los hilos de la cámara
     return {"status": f"Cámara {cam_id} detenida"}
 
+
+@camera_router.get("/cam/{cam_id}/stream_low")
+def stream_camera_low(cam_id: int):
+    start_camera(cam_id)
+    return StreamingResponse(
+        generate_frames(cam_id, low=True),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
 # ---------------------------
 # STATUS COMPLETO
 # ---------------------------
-@status_router.get("/cam/{cam_id}/status_full")  # <-- cambiamos "camera" por "cam"
+@status_router.get("/camera/{cam_id}/status_full")
 def camera_status_full(cam_id: int):
     global _last_assistance_seen, _last_cones_seen
 
@@ -56,6 +65,7 @@ def camera_status_full(cam_id: int):
 
     if cam_id not in VIDEO_PATHS:
         raise HTTPException(404, "Cámara no encontrada")
+
 
     total_vehiculos = vehicles_in_frame.get(cam_id, 0)
 
