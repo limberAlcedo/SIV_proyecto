@@ -74,8 +74,23 @@ VIDEO_OUTPUT_PATHS = {
     for cid in VIDEO_PATHS
 }
 
+
+# ===============================
+# GRABACIÓN DE INCIDENTES
+# ===============================
+incident_recording = {cid: False for cid in VIDEO_PATHS}
+incident_writer = {cid: None for cid in VIDEO_PATHS}
+INCIDENT_DIR = os.path.join(os.path.dirname(__file__), "../../videos/incidentes")
+os.makedirs(INCIDENT_DIR, exist_ok=True)
+
+
 video_writers = {}
 atexit.register(lambda: [w.release() for w in video_writers.values()])
+incident_recording = {cid: False for cid in VIDEO_PATHS}
+incident_writer = {cid: None for cid in VIDEO_PATHS}
+INCIDENT_DIR = os.path.join(os.path.dirname(__file__), "../../videos/incidentes")
+os.makedirs(INCIDENT_DIR, exist_ok=True)
+
 
 # ===============================
 # MODELO YOLO
@@ -184,6 +199,34 @@ def capture_video(cam_id):
         time.sleep(delay)
     cap.release()
 
+
+def start_incident_recording(cam_id, fps, frame):
+    if incident_recording[cam_id]:
+        return
+    filename = f"cam{cam_id}_incident_{int(time.time())}.mp4"
+    path = os.path.join(INCIDENT_DIR, filename)
+    writer = cv2.VideoWriter(
+        path,
+        cv2.VideoWriter_fourcc(*"avc1"),
+        fps,
+        (frame.shape[1], frame.shape[0])
+    )
+    incident_writer[cam_id] = writer
+    incident_recording[cam_id] = True
+    print(f"🎬 Grabando incidente cámara {cam_id} → {filename}")
+
+def stop_incident_recording(cam_id):
+    if not incident_recording[cam_id]:
+        return
+    incident_writer[cam_id].release()
+    incident_writer[cam_id] = None
+    incident_recording[cam_id] = False
+    print(f"⏹️ Incidente cámara {cam_id} finalizado")
+
+
+# ===============================
+# PROCESAMIENTO DE FRAMES
+# ===============================
 # ===============================
 # PROCESAMIENTO DE FRAMES
 # ===============================
@@ -198,8 +241,13 @@ def process_frames(cam_id, fps):
 
     EXCLUDE_ALERT_LABELS = {"persona", "cono", "asistencia"}
 
+    # Cooldown para incidentes
+    incident_cooldown = 0
+    MIN_INCIDENT_FRAMES = 15  # sigue grabando aunque desaparezca el evento
+
     while not stop_flags[cam_id]:
         frame = frame_queues[cam_id].get()
+        clean_frame = frame.copy()  # copia para grabar sin etiquetas
         padded = cv2.copyMakeBorder(frame, 20, 20, 20, 20, cv2.BORDER_CONSTANT)
 
         with model_lock:
@@ -266,6 +314,28 @@ def process_frames(cam_id, fps):
         update_stopped_vehicles(cam_id, current_ids)
         draw_trails(annotated, cam_id)  # dibujar estelas
 
+        # ===============================
+        # GRABAR VIDEO DE INCIDENTE
+        # ===============================
+        incident = bool(
+            stopped_vehicles[cam_id] or
+            assistance_confirmed[cam_id] or
+            cones_confirmed[cam_id]
+        )
+
+        if incident:
+            incident_cooldown = 0
+            start_incident_recording(cam_id, fps, clean_frame)
+            incident_writer[cam_id].write(clean_frame)
+        else:
+            if incident_recording[cam_id]:
+                incident_cooldown += 1
+                if incident_cooldown >= MIN_INCIDENT_FRAMES:
+                    stop_incident_recording(cam_id)
+                else:
+                    # seguimos grabando aunque el evento desaparezca momentáneamente
+                    incident_writer[cam_id].write(clean_frame)
+
         # Limpiar tracks de IDs no presentes
         for tid in list(vehicle_states[cam_id].keys()):
             if tid not in current_ids:
@@ -283,12 +353,14 @@ def process_frames(cam_id, fps):
             cones_confirmed[cam_id] = False
             cones_detected[cam_id] = False
 
+        # Video completo con labels/estelas para streaming
         writer.write(annotated)
         ok, jpg = cv2.imencode(".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
         if ok:
             if processed_queues[cam_id].full():
                 processed_queues[cam_id].get_nowait()
             processed_queues[cam_id].put(jpg.tobytes())
+
 
 # ===============================
 # STREAM (LOW / HIGH QUALITY)

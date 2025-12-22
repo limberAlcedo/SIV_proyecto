@@ -107,13 +107,18 @@ const CameraCard = ({ camId, title }) => {
                 🚨 {data.detenidos} Vehiculo{data.detenidos > 1 ? "s" : ""} detenido
               </div>
             )}
+
+            {/* 🔴 Badge de grabación */}
+            {data.alertType && (
+              <div className="recording-badge">
+                🔴 GRABANDO
+              </div>
+            )}
           </>
         ) : (
           <div className="offline">OFFLINE ❌</div>
         )}
       </div>
-
-      {/* Aquí se mantienen todos los estilos originales */}
 
       <style>{`
         .camera-card {
@@ -200,32 +205,39 @@ const CameraCard = ({ camId, title }) => {
           transition: all 0.3s ease;
         }
 
-@keyframes glowPulse {
-  0% {
-    box-shadow: 0 0 8px #dc2626aa, 0 0 14px #ef4444aa, 0 0 20px #f87171aa;
-    transform: translateX(-50%) scale(1);
-  }
-  50% {
-    box-shadow: 0 0 12px #dc2626cc, 0 0 18px #ef4444cc, 0 0 24px #f87171cc;
-    transform: translateX(-50%) scale(1.05);
-  }
-  100% {
-    box-shadow: 0 0 8px #dc2626aa, 0 0 14px #ef4444aa, 0 0 20px #f87171aa;
-    transform: translateX(-50%) scale(1);
-  }
-}
+        .alert-badge {
+          position: absolute;
+          bottom: 10px;
+          right: 10px;
+          padding: 0.3em 0.8em;
+          font-size: 0.8rem;
+          font-weight: 700;
+          color: #fff;
+          background-color: #dc2626;
+          border-radius: 12px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+          z-index: 10;
+        }
 
+        .recording-badge {
+          position: absolute;
+          bottom: 10px;
+          left: 10px;
+          padding: 0.3em 0.8em;
+          font-size: 0.8rem;
+          font-weight: 700;
+          color: #fff;
+          background-color: #dc2626;
+          border-radius: 12px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+          animation: pulse 1.5s infinite alternate;
+          z-index: 10;
+        }
 
         @keyframes pulse {
           0% { transform: translateY(0px) scale(1); opacity: 0.85; }
           50% { transform: translateY(-2px) scale(1.05); opacity: 1; }
           100% { transform: translateY(0px) scale(1); opacity: 0.85; }
-        }
-
-        @keyframes glowPulse {
-          0% { transform: translateX(-50%) scale(1); }
-          50% { transform: translateX(-50%) scale(1.05); }
-          100% { transform: translateX(-50%) scale(1); }
         }
 
         @keyframes borderPulse {
@@ -235,7 +247,7 @@ const CameraCard = ({ camId, title }) => {
         }
 
         @media (max-width: 480px) {
-          .camera-title, .live-badge, .level-badge, .alert-badge {
+          .camera-title, .live-badge, .level-badge, .alert-badge, .recording-badge {
             font-size: 0.7rem;
             padding: 0.25em 0.6em;
           }

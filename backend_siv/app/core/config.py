@@ -17,7 +17,7 @@ MODEL_PATH = os.path.join(YOLO_DIR, "best.pt")
 # =========================================================
 VIDEO_DIR = os.path.join(BACKEND_DIR, "videos")
 VIDEO_PATHS = {
-    1: os.path.join(VIDEO_DIR, "okkkkkk.mp4"),
+    1: os.path.join(VIDEO_DIR, "camm.mp4"),
 
 
 }
