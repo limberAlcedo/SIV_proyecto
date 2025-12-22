@@ -1,11 +1,14 @@
-# app/api/routes/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from jose import JWTError
+
 from app import models, schemas, database, utils
 
 auth_router = APIRouter(tags=["auth"])
 
-# Dependencia para la sesión de DB
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
 def get_db():
     db = database.SessionLocal()
     try:
@@ -13,10 +16,7 @@ def get_db():
     finally:
         db.close()
 
-# ---------------------------
-# Login
-# ---------------------------
-@auth_router.post("/login", response_model=schemas.TokenResponse)
+@auth_router.post("/login")
 def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
 
     db_user = db.query(models.User).filter(
@@ -49,12 +49,27 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
         }
     }
 
-# ---------------------------
-# Obtener usuario actual desde token
-# ---------------------------
-@auth_router.get("/me", response_model=schemas.UserResponse)
-def get_me(current_user: models.User = Depends(utils.get_current_user)):
-    """
-    Endpoint para obtener datos del usuario logueado
-    """
-    return current_user
+
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    try:
+        payload = utils.decode_token(token)
+        username: str = payload.get("sub")
+
+        if not username:
+            raise HTTPException(status_code=401, detail="Token inválido")
+
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+    user = db.query(models.User).filter(
+        models.User.username == username
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario no existe")
+
+    return user
+# /Users/limberalcedo/Desktop/Proyecto/SIV_proyecto/backend_siv/app/api/routes/auth.py

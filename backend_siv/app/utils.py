@@ -7,7 +7,6 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app import models
 from app.api.routes.dependencies import get_db
-from app import utils
 
 # ---------------------------
 # Hash de contraseñas
@@ -28,30 +27,6 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 1 día
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-
-
-from passlib.context import CryptContext
-
-# ---------------------------
-# Configuración de bcrypt para contraseñas
-# ---------------------------
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-def get_password_hash(password: str) -> str:
-    """
-    Genera un hash seguro de la contraseña usando bcrypt.
-    Trunca a 72 bytes (limite de bcrypt)
-    """
-    password_clean = password.strip()[:72]
-    return pwd_context.hash(password_clean)
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verifica que la contraseña en texto plano coincida con el hash.
-    Trunca a 72 bytes para evitar errores
-    """
-    password_clean = plain_password.strip()[:72]
-    return pwd_context.verify(password_clean, hashed_password)
 
 
 # ---------------------------

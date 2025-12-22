@@ -96,25 +96,21 @@ class IncidenteResponse(BaseModel):
 
 
 
-# app/schemas/video.py
-from pydantic import BaseModel
-from datetime import datetime
-from typing import Optional
 
 # =========================
-# SCHEMAS Pydantic
+# VIDEOS
 # =========================
 class VideoBase(BaseModel):
     camera_id: int
     filename: str
     event_type: str
+    upload_time: datetime
 
 class VideoCreate(VideoBase):
-    upload_time: Optional[datetime] = None  # se asigna automáticamente si no se pasa
+    pass
 
 class VideoResponse(VideoBase):
     id: int
-    upload_time: datetime
 
     class Config:
         orm_mode = True
