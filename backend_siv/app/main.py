@@ -34,6 +34,7 @@ app.include_router(status_router, prefix="/api", tags=["Status Cámaras"])
 # Montar carpeta de grabaciones como estático
 app.mount("/videos", StaticFiles(directory=VIDEOS_DIR), name="videos")
 
+
 @app.get("/")
 def root():
     return {"status": "Servidor SIV funcionando ✔️"}

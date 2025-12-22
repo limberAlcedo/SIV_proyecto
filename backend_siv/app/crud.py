@@ -74,7 +74,15 @@ def close_incidente(db: Session, incidente_id: int, cerrado_por_id: int):
     db.refresh(db_incidente)
     return db_incidente
 
-# ---------------- VIDEOS ----------------
+# app/crud/video.py
+from sqlalchemy.orm import Session
+from app import models, schemas
+from datetime import datetime
+
+# =========================
+# CRUD VIDEOS
+# =========================
+
 def get_videos(db: Session):
     return db.query(models.Video).order_by(models.Video.upload_time.desc()).all()
 
@@ -82,6 +90,8 @@ def get_video(db: Session, video_id: int):
     return db.query(models.Video).filter(models.Video.id == video_id).first()
 
 def create_video(db: Session, video: schemas.VideoCreate):
+    if not video.upload_time:
+        video.upload_time = datetime.utcnow()
     db_video = models.Video(**video.dict())
     db.add(db_video)
     db.commit()

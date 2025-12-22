@@ -9,7 +9,7 @@ from app.database import Base
 class Role(Base):
     __tablename__ = "roles"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), unique=True, nullable=False)  # ejemplo: "admin", "supervisor"
+    name = Column(String(50), unique=True, nullable=False)  
     permissions = Column(JSON, default=[])  # lista de permisos
     users = relationship("User", back_populates="role")
 
@@ -25,7 +25,6 @@ class User(Base):
     password = Column(String(200), nullable=False)
     role_id = Column(Integer, ForeignKey("roles.id"))
     role = relationship("Role", back_populates="users")
-    last_seen = Column(DateTime, nullable=True)  # opcional para usuarios activos
 
 # =========================
 # INCIDENTES
@@ -59,11 +58,16 @@ class Incidente(Base):
     creador = relationship("User", foreign_keys=[created_by_id], backref="incidentes_creados")
     cerrador = relationship("User", foreign_keys=[close_by_id], backref="incidentes_cerrados")
 
+# app/models/video.py
+from sqlalchemy import Column, Integer, String, DateTime
+from app.database import Base
+
 # =========================
-# VIDEOS
+# MODELO SQLALCHEMY
 # =========================
 class Video(Base):
     __tablename__ = "videos"
+
     id = Column(Integer, primary_key=True, index=True)
     camera_id = Column(Integer, nullable=False)
     filename = Column(String(200), unique=True, index=True, nullable=False)
