@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, JSON, DateTime, Date, Time, Fore
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
+from app.database import Base
 
 # =========================
 # ROLES
@@ -58,9 +59,6 @@ class Incidente(Base):
     creador = relationship("User", foreign_keys=[created_by_id], backref="incidentes_creados")
     cerrador = relationship("User", foreign_keys=[close_by_id], backref="incidentes_cerrados")
 
-# app/models/video.py
-from sqlalchemy import Column, Integer, String, DateTime
-from app.database import Base
 
 # =========================
 # MODELO SQLALCHEMY
