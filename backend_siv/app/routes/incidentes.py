@@ -4,7 +4,7 @@ from typing import List, Optional
 from datetime import datetime, date, time
 
 from app import crud, schemas, models
-from app.api.routes.dependencies import get_db, require_roles
+from app.routes.dependencies import get_db, require_roles
 
 router = APIRouter(tags=["Incidentes"])
 

@@ -3,11 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
-from app.api.routes.auth import auth_router
-from app.api.routes.users import user_router
-from app.api.routes.videos import video_router
-from app.api.routes.incidentes import router as incidentes_router
-from app.api.camara import camera_router, status_router
+from app.routes.auth import auth_router
+from app.routes.users import user_router
+from app.routes.videos import video_router
+from app.routes.incidentes import router as incidentes_router
+from app.routes.camara import camera_router, status_router
 
 # Carpeta de grabaciones
 VIDEOS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "videos", "grabaciones")

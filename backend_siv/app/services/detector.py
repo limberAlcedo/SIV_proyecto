@@ -8,7 +8,7 @@ import os
 import atexit
 import numpy as np
 
-from app.core.config import (
+from backend_siv.app.services.config import (
     VIDEO_PATHS, MODEL_PATH, CLASS_COLORS, DEFAULT_COLOR,
     TARGET_RES, JPEG_QUALITY, TRACKER_CONFIG,
     MAX_TRACK_HISTORY, MIN_CONFIDENCE,

@@ -31,20 +31,32 @@ logs/
 # Archivos generados / YOLO / videos
 *.pt
 *.mp4
-backend_siv/videos/*
-!backend_siv/videos/.gitkeep
+*.avi
+
+# ==============================
+# Frontend Node / React / Vite
+# ==============================
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+
+# Logs y temporales
+**/logs/
+**/tmp/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Archivos locales
+*.local
 
 # IDEs
 .vscode/
 .idea/
-backend_siv/videos/*.avi
 
-
-# Ignorar todos los videos AVI
-backend_siv/grabaciones/*.avi
-
-# O ignorar toda la carpeta de grabaciones
-backend_siv/grabaciones/
-
-backend_siv/grabaciones/cam3-5.avi
-backend_siv/grabaciones/*.avi
+# macOS
+.DS_Store

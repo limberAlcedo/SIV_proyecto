@@ -50,7 +50,6 @@ CLASS_COLORS = {
     "persona": (46, 204, 113),
     "cono": (217, 78, 255),  # naranja
     "asistencia": (149, 165, 166),
-    "safety cone": (0, 165, 255)
 }
 
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 import time
 
-from app.services.detector import (
+from backend_siv.app.services.detector import (
     start_camera,
     stop_camera,
     generate_frames,
