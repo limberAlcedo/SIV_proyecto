@@ -3,71 +3,82 @@
 # ==============================
 
 # ==== Framework principal ====
-fastapi==0.111.1
-uvicorn==0.23.2
+fastapi>=0.111.0       # Framework web moderno, rápido y asíncrono. Maneja rutas, dependencias y respuesta JSON
+uvicorn>=0.23.0        # Servidor ASGI para ejecutar FastAPI en desarrollo o producción
 
 # ==== ORM y base de datos ====
-sqlalchemy==2.0.26
-pymysql==1.1.1  # Conector MySQL
+sqlalchemy>=2.0.0      # ORM para interactuar con bases de datos relacionales (MySQL)
+pymysql>=1.1.0         # Conector de MySQL para Python, necesario para SQLAlchemy
 
 # ==== Seguridad y autenticación ====
-passlib[bcrypt]==1.7.4
-python-jose==3.3.0  # JWT
-python-dotenv==1.0.0  # Variables de entorno
+passlib[bcrypt]>=1.7.4 # Librería para hashing de contraseñas con bcrypt (máximo 72 bytes)
+python-jose>=3.3.0     # JWT (JSON Web Tokens) para autenticación segura
+python-dotenv>=1.0.0   # Permite cargar variables de entorno desde un archivo .env
 
 # ==== Manejo de archivos ====
-python-multipart==0.0.7
-aiofiles==23.2.0
-pillow==10.0.1
+python-multipart>=0.0.7 # Permite recibir archivos enviados vía formularios (multipart/form-data)
+aiofiles>=23.2.0        # Lectura y escritura de archivos de manera asíncrona
+pillow>=10.0.1          # Procesamiento de imágenes: abrir, redimensionar, convertir formatos, etc.
 
 # ==== IA / Visión por computadora ====
-opencv-python==4.8.1.78
-ultralytics==8.3.226  # YOLOv8
+opencv-python>=4.8.1     # Biblioteca para procesamiento de imágenes y video
+ultralytics>=8.3.226     # YOLOv8 para detección de objetos en imágenes y video
 
 # ==== Utilidades ====
-numpy==1.26.4
-scipy==1.11.3
-requests==2.32.0
-websockets==11.0.3
+numpy>=1.26.4            # Manejo de arreglos y cálculos numéricos
+scipy>=1.11.3            # Funciones científicas, optimización, estadísticas
+requests>=2.32.0         # Realizar solicitudes HTTP (GET, POST, etc.)
+websockets>=11.0.3       # Comunicación en tiempo real mediante WebSockets
+
+# ==== Opcionales recomendados para desarrollo ====
+black>=24.0.0            # Formateo automático de código Python
+isort>=6.0.0             # Ordenar imports automáticamente
+pytest>=7.0.0            # Framework de testing para ejecutar pruebas automáticas
 
 # ==============================
-# INSTRUCCIONES DE PYTHON
+# INSTRUCCIONES DE USO BACKEND
 # ==============================
-#! Crear entorno virtual con Python 3.11 o 3.12
-# python3.11 -m venv .venv
 
-#! Activar entorno virtual
-# Windows: .venv\Scripts\activate
-# Mac/Linux: source .venv/bin/activate
+# TODO: Crear entorno virtual con Python 3.11 o 3.12
+# python3.12 -m venv venv
 
-#* Instalar dependencias del backend
+# TODO: Activar entorno virtual
+# Linux/Mac: source venv/bin/activate
+# Windows: .\venv\Scripts\activate
+
+# TODO: Actualizar pip antes de instalar paquetes
 # pip install --upgrade pip
+
+# TODO: Instalar dependencias desde este archivo
 # pip install -r requirements.txt
 
+# NOTE: Crear archivo .env para la configuración sensible
+# DB_USER=siv_user
+# DB_PASSWORD=A.Alcedo2705
+# DB_NAME=Siv
+# DB_HOST=localhost
+# SECRET_KEY=CAMBIA_ESTO_POR_ALGO_MUY_SEGURO
 
 # ==============================
-# DEPENDENCIAS FRONTEND (Node / React)
+# FRONTEND (Node / React)
 # ==============================
-# NOTA: Estas se instalan en 'frontend_siv' usando npm/yarn, NO con pip
 
-#* Instalar paquetes con npm dentro de frontend_siv
+# NOTE: Todas estas dependencias se instalan dentro de la carpeta 'frontend_siv' usando npm
 # cd frontend_siv
-# npm install
 
-#* Paquetes recomendados para frontend
-# React y herramientas
-#react
-#react-dom
-#axios            # Para llamadas HTTP
-#bootstrap        # Solo CSS, JS opcional si se usa Popper
+# TODO: Instalar paquetes necesarios para el frontend
+# npm install react react-dom axios bootstrap @popperjs/core vite @vitejs/plugin-react
 
-#* Comando completo para instalar frontend
-# npm install react react-dom axios bootstrap @popperjs/core
+# NOTE: Levantar servidor de desarrollo de frontend
+# npm run dev -- --host=0.0.0.0
+# Esto inicia Vite en http://localhost:5173/ por defecto
 
 # ==============================
-# INSTRUCCIONES DE DESARROLLO FRONTEND
+# NOTAS IMPORTANTES
 # ==============================
-#! Levantar servidor de desarrollo de frontend
-# cd frontend_siv
-# npm run dev -- --host=localhost
-# Esto iniciará Vite en http://localhost:5173/ por defecto
+
+# NOTE: Las contraseñas con bcrypt tienen un límite de 72 bytes.
+#      Truncar contraseñas largas con [password[:72]] antes de hashear.
+# NOTE: JWT requiere un SECRET_KEY seguro y largo, diferente al ejemplo.
+# NOTE: Variables de entorno sensibles NUNCA subirlas a un repositorio público.
+# TODO: Para producción, revisar seguridad, CORS y permisos de MySQL.

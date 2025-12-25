@@ -6,18 +6,26 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app import models
-from app.api.routes.dependencies import get_db
+from app.routes.dependencies import get_db
+from passlib.context import CryptContext
 
+# Configuración de bcrypt
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+MAX_BCRYPT_LEN = 72
 # ---------------------------
 # Hash de contraseñas
 # ---------------------------
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+MAX_BCRYPT_LEN = 72
 
-def hash_password(password: str) -> str:
+def hash_password(password: str):
+    password = password[:MAX_BCRYPT_LEN]  # truncar
     return pwd_context.hash(password)
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
+def verify_password(plain_password, hashed_password):
+    plain_password = plain_password[:MAX_BCRYPT_LEN]  # truncar
     return pwd_context.verify(plain_password, hashed_password)
+
 
 # ---------------------------
 # Configuración JWT

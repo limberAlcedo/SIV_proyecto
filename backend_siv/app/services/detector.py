@@ -8,7 +8,7 @@ import os
 import atexit
 import numpy as np
 
-from backend_siv.app.services.config import (
+from app.services.config import (
     VIDEO_PATHS, MODEL_PATH, CLASS_COLORS, DEFAULT_COLOR,
     TARGET_RES, JPEG_QUALITY, TRACKER_CONFIG,
     MAX_TRACK_HISTORY, MIN_CONFIDENCE,
@@ -175,10 +175,15 @@ def update_stopped_vehicles(cam_id, current_ids):
 
 def draw_trails(frame, cam_id):
     for tid, history in track_histories[cam_id].items():
+        # Solo dibujar si el vehículo está detenido confirmado
+        if vehicle_states[cam_id].get(tid) != "STOPPED_CONFIRMED":
+            continue
+
         color = (0, 255, 255)  # color de la estela
         points = history[-MAX_TRAIL:]
         for i in range(1, len(points)):
             cv2.line(frame, points[i-1], points[i], color, 2)
+
 
 # ===============================
 # CAPTURA DE VIDEO
