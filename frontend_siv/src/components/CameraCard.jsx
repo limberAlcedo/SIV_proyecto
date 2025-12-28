@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 
-const BACKEND_URL = "http://127.0.0.1:8000";
+const BACKEND_URL = "http://3.93.58.208:8000";
 
 const ALERT_COLORS = {
   asistencia: "#16a34a",
@@ -108,12 +108,13 @@ const CameraCard = ({ camId, title }) => {
               </div>
             )}
 
-            {/* 🔴 Badge de grabación */}
             {data.alertType && (
               <div className="recording-badge">
-                🔴 GRABANDO
+                <span className="rec-dot" />
+                REC
               </div>
             )}
+
           </>
         ) : (
           <div className="offline">OFFLINE ❌</div>
@@ -219,32 +220,44 @@ const CameraCard = ({ camId, title }) => {
           z-index: 10;
         }
 
-        .recording-badge {
-          position: absolute;
-          bottom: 10px;
-          left: 10px;
-          padding: 0.3em 0.8em;
-          font-size: 0.8rem;
-          font-weight: 700;
-          color: #fff;
-          background-color: #dc2626;
-          border-radius: 12px;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-          animation: pulse 1.5s infinite alternate;
-          z-index: 10;
-        }
+.recording-badge {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.35em 0.75em;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(220, 38, 38, 0.95);
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(220, 38, 38, 0.9);
+  animation: recPulse 1.2s infinite;
+  z-index: 20;
+}
 
-        @keyframes pulse {
-          0% { transform: translateY(0px) scale(1); opacity: 0.85; }
-          50% { transform: translateY(-2px) scale(1.05); opacity: 1; }
-          100% { transform: translateY(0px) scale(1); opacity: 0.85; }
-        }
+.rec-dot {
+  width: 9px;
+  height: 9px;
+  background-color: #ff0000;
+  border-radius: 50%;
+  animation: dotBlink 1s infinite;
+}
 
-        @keyframes borderPulse {
-          0% { box-shadow: 0 8px 20px ${borderColor}55; }
-          50% { box-shadow: 0 8px 28px ${borderColor}88; }
-          100% { box-shadow: 0 8px 20px ${borderColor}55; }
-        }
+@keyframes dotBlink {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+@keyframes recPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
 
         @media (max-width: 480px) {
           .camera-title, .live-badge, .level-badge, .alert-badge, .recording-badge {

@@ -1,0 +1,79 @@
+.reportes-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f172a, #1a3776, #0a3098);
+    padding: 2rem 0;
+}
+
+.reportes-wrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.reportes-title {
+    text-align: center;
+    color: #ffc107;
+    margin-bottom: 1rem;
+}
+
+/* Glass card */
+.glass-card {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    border-radius: 16px;
+    transition: 0.3s;
+    width: 100%;
+    text-align: center;
+}
+
+.glass-card-padding {
+    padding: 8px 16px;
+}
+
+.glass-card-table {
+    overflow-x: auto;
+}
+
+/* Tabla */
+.table-minwidth {
+    min-width: 700px;
+}
+
+/* Badges prioridad */
+.badge-priority-alta {
+    background: linear-gradient(90deg, #ff4d4d, #ef4444);
+    color: #fff;
+    font-weight: 600;
+    padding: 0.4em 0.8em;
+}
+
+.badge-priority-media {
+    background: linear-gradient(90deg, #fef08a, #facc15);
+    color: #fff;
+    font-weight: 600;
+    padding: 0.4em 0.8em;
+}
+
+.badge-priority-baja {
+    background: linear-gradient(90deg, #6ee7b7, #10b981);
+    color: #fff;
+    font-weight: 600;
+    padding: 0.4em 0.8em;
+}
+
+/* Badges estado */
+.badge-status-abierto {
+    background: linear-gradient(90deg, #4ade80, #22c55e);
+    color: #fff;
+    font-weight: 600;
+    padding: 0.4em 0.8em;
+}
+
+.badge-status-cerrado {
+    background: linear-gradient(90deg, #f87171, #ef4444);
+    color: #fff;
+    font-weight: 600;
+    padding: 0.4em 0.8em;
+}

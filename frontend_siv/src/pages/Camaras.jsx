@@ -8,8 +8,10 @@ import { ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import "../styles/Camaras.css";
 
-const BACKEND_URL = "http://127.0.0.1:8000";
+// ================= IMPORTAR FUNCIONES API =================
+import { getCameraStatus, startCamera, stopCamera } from "../api/api.js";
 
+// ================= CONSTANTES =================
 const ALERT_COLORS = {
   vehiculo: "#ef4444",
   asistencia: "#10b981",
@@ -17,18 +19,22 @@ const ALERT_COLORS = {
   accidente: "#8b5cf6",
 };
 
+// URL backend (usar variable de entorno si existe)
+const BACKEND_URL = import.meta.env.VITE_API_URL || "http://3.93.58.208:8000";
+
 export default function Camaras() {
   const navigate = useNavigate();
-  const [alerts, setAlerts] = useState(0);
-  const [flow, setFlow] = useState(0);
-  const [activeCameras, setActiveCameras] = useState(0);
-  const [focusedCam, setFocusedCam] = useState(null);
-  const [cameraStatus, setCameraStatus] = useState({});
-  const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef(null);
-  const recordedChunksRef = useRef([]);
-  const videoRef = useRef(null);
 
+  // ================= ESTADOS =================
+  const [alerts, setAlerts] = useState(0);             // Número total de alertas
+  const [flow, setFlow] = useState(0);                 // Flujo estimado de vehículos
+  const [activeCameras, setActiveCameras] = useState(0); // Número de cámaras online
+  const [focusedCam, setFocusedCam] = useState(null);    // Cámara enfocada (fullscreen)
+  const [cameraStatus, setCameraStatus] = useState({});  // Estado de cada cámara
+
+  const videoRef = useRef(null); // Referencia al video fullscreen (por si se quiere grabar)
+
+  // Lista de cámaras
   const cameras = [
     { id: 1, title: "CCTV 1.1" },
     { id: 2, title: "CCTV 1.2" },
@@ -38,13 +44,13 @@ export default function Camaras() {
     { id: 6, title: "CCTV 1.6" },
   ];
 
-  // Autenticación
+  // ================= AUTENTICACIÓN =================
   useEffect(() => {
     const user = localStorage.getItem("user");
-    if (!user) navigate("/");
+    if (!user) navigate("/"); // Redirigir al login si no hay usuario
   }, [navigate]);
 
-  // Estado rápido de cámaras y alertas (cada 5s)
+  // ================= FETCH RAPIDO DE CÁMARAS Y ALERTAS =================
   useEffect(() => {
     const fetchStatus = async () => {
       let totalAlerts = 0;
@@ -57,6 +63,7 @@ export default function Camaras() {
             const res = await fetch(`${BACKEND_URL}/api/camera/${cam.id}/status_full`);
             const json = await res.json();
 
+            // Determinar tipo de alerta (ejemplo)
             const alertType = json.detenidos > 0 ? "vehiculo" : null;
 
             statusMap[cam.id] = {
@@ -73,7 +80,7 @@ export default function Camaras() {
               if (alertType) totalAlerts++;
             }
           } catch (err) {
-            console.error(err);
+            console.error("Error cámara:", cam.id, err);
           }
         })
       );
@@ -84,11 +91,11 @@ export default function Camaras() {
     };
 
     fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
+    const interval = setInterval(fetchStatus, 5000); // Cada 5s
     return () => clearInterval(interval);
   }, [cameras]);
 
-  // Flujo estimado, actualizado cada 5 min
+  // ================= FLUJO ESTIMADO =================
   useEffect(() => {
     const fetchFlow = async () => {
       let flowActual = 0;
@@ -110,29 +117,32 @@ export default function Camaras() {
       );
 
       if (onlineCount > 0) flowActual = flowActual / onlineCount;
-      setFlow(prev => Math.round(prev * 0.7 + flowActual * 0.3));
+      setFlow(prev => Math.round(prev * 0.7 + flowActual * 0.3)); // suavizado
     };
 
     fetchFlow();
-    const interval = setInterval(fetchFlow, 800000); // 5 min
+    const interval = setInterval(fetchFlow, 300000); // 5 min
     return () => clearInterval(interval);
   }, [cameras]);
 
-  // 🚨 Iniciar YOLO al entrar a la página y detener al salir
+  // ================= INICIAR / DETENER YOLO =================
   useEffect(() => {
-    cameras.forEach((cam) => {
+    // Inicia todas las cámaras al montar el componente
+    cameras.forEach(cam => {
       fetch(`${BACKEND_URL}/api/camara/${cam.id}/start`, { method: "POST" })
         .catch(err => console.error("Error al iniciar cámara:", err));
     });
 
+    // Detiene todas al desmontar
     return () => {
-      cameras.forEach((cam) => {
+      cameras.forEach(cam => {
         fetch(`${BACKEND_URL}/api/camara/${cam.id}/stop`, { method: "POST" })
           .catch(err => console.error("Error al detener cámara:", err));
       });
     };
   }, []);
 
+  // ================= RENDER =================
   return (
     <motion.div
       className="camara-page d-flex flex-column align-items-center min-vh-100 text-white p-4"
@@ -174,9 +184,10 @@ export default function Camaras() {
         </Row>
       </Container>
 
+      {/* GRID DE CÁMARAS */}
       <Container fluid className={focusedCam ? "blurred-grid" : ""}>
         <Row className="g-3 justify-content-center">
-          {cameras.map((cam) => (
+          {cameras.map(cam => (
             <Col key={cam.id} xs={12} sm={6} md={4} lg={3}>
               <motion.div
                 whileHover={{ scale: 1.03 }}
@@ -199,6 +210,7 @@ export default function Camaras() {
         </Row>
       </Container>
 
+      {/* FULLSCREEN */}
       {focusedCam && (
         <motion.div className="fullscreen-wrapper d-flex justify-content-center align-items-center">
           <motion.div
@@ -214,7 +226,6 @@ export default function Camaras() {
               className="fullscreen-img"
               alt={focusedCam.title}
             />
-
             <Button
               variant="light"
               className="close-btn position-absolute"
@@ -229,7 +240,7 @@ export default function Camaras() {
   );
 }
 
-// KPI genérico
+// ================= COMPONENTES AUXILIARES =================
 const KpiCard = ({ icon, label, value, gradient }) => (
   <motion.div
     className="kpi-card text-center p-3 rounded-3"
@@ -242,7 +253,6 @@ const KpiCard = ({ icon, label, value, gradient }) => (
   </motion.div>
 );
 
-// KPI de alertas
 const AlertKpi = ({ alerts }) => (
   <motion.div
     className="kpi-card text-center p-3 rounded-3"

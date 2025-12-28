@@ -1,40 +1,21 @@
+// src/pages/Login.jsx
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogIn, AlertCircle, UserPlus, Eye, EyeOff } from "lucide-react";
+import { LogIn, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { Container, Form, Button, InputGroup } from "react-bootstrap";
 import "../styles/Login.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-
-// ================= LOGIN API =================
-async function loginUser(username, password) {
-  const res = await fetch(`${API_URL}/api/auth/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ username, password }),
-  });
-
-  const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data.detail || "Usuario o contraseña incorrectos ❌");
-  }
-
-  return data; // { access_token, token_type, user }
-}
+import { loginUser } from "../api/api.js"; // <-- usamos la función de api.js
 
 // ============ REDIRECCIÓN POR ROL ============
 const redirectByRole = (navigate, role_name) => {
   const routes = {
     admin: "/usuarios",
     supervisor: "/reportes",
-    operador: "/camaras", // antes estaba 'user'
+    operador: "/camaras",
   };
-
   navigate(routes[role_name] || "/camaras", { replace: true });
 };
 
@@ -57,7 +38,7 @@ export default function Login({ onLogin }) {
       const token = localStorage.getItem("token");
 
       if (user && token) {
-        redirectByRole(navigate, user.role_name); // CORREGIDO
+        redirectByRole(navigate, user.role_name);
       }
     } catch {
       localStorage.removeItem("user");
@@ -72,21 +53,21 @@ export default function Login({ onLogin }) {
     setError("");
 
     try {
-      const response = await loginUser(username, password);
+      const response = await loginUser({ username, password });
 
       // Guardar token y usuario
       localStorage.setItem("token", response.access_token);
       localStorage.setItem("token_type", response.token_type || "bearer");
       localStorage.setItem("user", JSON.stringify(response.user));
 
-      // Callback
+      // Callback opcional
       onLogin?.(response.user);
 
       // Redirigir según rol
-      redirectByRole(navigate, response.user.role_name); // CORREGIDO
+      redirectByRole(navigate, response.user.role_name);
 
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.detail || err.message || "Usuario o contraseña incorrectos ❌");
       setShake(true);
       (username ? passwordRef : usernameRef).current?.focus();
       setTimeout(() => setShake(false), 500);
@@ -173,15 +154,15 @@ export default function Login({ onLogin }) {
               </motion.div>
             )}
           </AnimatePresence>
-{/* BOTÓN LOGIN */}
-<Button type="submit" className="button-custom w-100" disabled={loading}>
-  {loading ? "Ingresando..." : "Ingresar"}
-</Button>
 
-</Form>
+          {/* BOTÓN LOGIN */}
+          <Button type="submit" className="button-custom w-100" disabled={loading}>
+            {loading ? "Ingresando..." : "Ingresar"}
+          </Button>
+        </Form>
 
-<p className="footer-text">© {new Date().getFullYear()} SIV</p>
-</motion.div>
-</Container>
-);
+        <p className="footer-text">© {new Date().getFullYear()} SIV</p>
+      </motion.div>
+    </Container>
+  );
 }
